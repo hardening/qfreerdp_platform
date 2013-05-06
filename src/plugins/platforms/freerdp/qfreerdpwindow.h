@@ -1,0 +1,86 @@
+/*
+ * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+ *
+ * Permission to use, copy, modify, distribute, and sell this software and
+ * its documentation for any purpose is hereby granted without fee, provided
+ * that the above copyright notice appear in all copies and that both that
+ * copyright notice and this permission notice appear in supporting
+ * documentation, and that the name of the copyright holders not be used in
+ * advertising or publicity pertaining to distribution of the software
+ * without specific, written prior permission.  The copyright holders make
+ * no representations about the suitability of this software for any
+ * purpose.  It is provided "as is" without express or implied warranty.
+ *
+ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
+ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
+ * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+ * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+#ifndef __QFREERDPWINDOW_H__
+#define __QFREERDPWINDOW_H__
+
+#include <qpa/qplatformwindow.h>
+
+QT_BEGIN_NAMESPACE
+
+class QFreeRdpPlatform;
+class QFreeRdpBackingStore;
+
+class QFreeRdpWindow : public QPlatformWindow
+{
+	Q_DECLARE_PRIVATE(QPlatformWindow)
+
+public:
+    QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform);
+    ~QFreeRdpWindow();
+
+    void setBackingStore(QFreeRdpBackingStore *b);
+
+    /** @overload QPlatformWindow
+     * @{*/
+    virtual void setWindowState(Qt::WindowState state);
+    virtual void raise();
+    virtual void lower();
+    virtual void setVisible(bool visible);
+    virtual void setGeometry(const QRect &rect);
+    /** @} */
+
+
+    bool isVisible() const { return mVisible; }
+
+    const QImage *getContent();
+
+    WId winId() const { return mWinId; }
+
+#if 0
+    QMargins frameMargins() const;
+
+    void setWindowTitle(const QString &title);
+    void propagateSizeHints();
+
+   public slots:
+	void onDestroy(int winId);
+    void onActivated(int winId);
+    void onSetGeometry(int winId, int x, int y, int width, int height);
+    void onKeyEvent(int winId, int type, int code, int modifiers, const QString &text);
+    void onMouseEvent(int winId, int localX, int localY, int globalX, int globalY, int buttons, int modifiers);
+    void onMouseWheel(int winId, int localX, int localY, int globalX, int globalY, int delta, int modifiers);
+#endif
+
+public slots:
+
+protected:
+    QFreeRdpPlatform *mPlatform;
+    QFreeRdpBackingStore *mBackingStore;
+    QPlatformScreen *mScreen;
+    WId mWinId;
+    bool mVisible;
+};
+
+QT_END_NAMESPACE
+
+#endif
