@@ -24,7 +24,10 @@
 
 #include <freerdp/peer.h>
 #include <QImage>
+
+#ifndef NO_XKB_SUPPORT
 #include <xkbcommon/xkbcommon.h>
+#endif
 
 
 QT_BEGIN_NAMESPACE
@@ -50,9 +53,12 @@ protected:
 	void repaint_raw(const QRegion &rect, const QImage *src);
 
 public slots:
-	void incomingBytes();
+	void incomingBytes(int sock);
 
 protected:
+	/** @{
+	 * freerdp callbacks
+	 */
 	static BOOL xf_peer_capabilities(freerdp_peer* client);
 	static BOOL	xf_peer_post_connect(freerdp_peer *client);
 	static void xf_mouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
@@ -61,6 +67,7 @@ protected:
 	static void xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
 	static void	xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
 	static void xf_suppress_output(rdpContext* context, BYTE allow, RECTANGLE_16 *area);
+	/** @} */
 
 
 protected:
@@ -72,11 +79,14 @@ protected:
 	QFlags<PeerFlags> mFlags;
     QFreeRdpPlatform *mPlatform;
     freerdp_peer *mClient;
+    int mBogusCheckFileDescriptor;
 
     Qt::MouseButtons mLastButtons;
+#ifndef NO_XKB_SUPPORT
     struct xkb_context *mXkbContext;
     struct xkb_keymap *mXkbKeymap;
     struct xkb_state *mXkbState;
+#endif
 };
 
 QT_END_NAMESPACE

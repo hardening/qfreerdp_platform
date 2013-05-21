@@ -29,6 +29,7 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
 class QFreeRdpWindowManager;
+class QFreeRdpCursor;
 
 class QFreeRdpScreen : public QObject, public QPlatformScreen
 {
@@ -43,6 +44,9 @@ public:
     virtual QRect geometry() const;
     virtual int depth() const;
     virtual QImage::Format format() const;
+    virtual qreal refreshRate() const;
+    virtual QPlatformCursor *cursor() const;
+
     QImage *getScreenBits() { return mScreenBits; }
 public slots:
     void setGeometry(int x, int y, int width, int height);
@@ -51,6 +55,7 @@ protected:
     QRect mGeometry;
     QFreeRdpPlatform *mPlatform;
     QImage *mScreenBits;
+    QFreeRdpCursor *mCursor;
 };
 
 QT_END_NAMESPACE

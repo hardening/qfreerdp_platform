@@ -25,6 +25,7 @@
 #include "qfreerdpscreen.h"
 #include "qfreerdpwindow.h"
 
+#include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QRegion>
 #include <QPainter>
 #include <QDebug>
@@ -33,7 +34,8 @@ QT_BEGIN_NAMESPACE
 
 QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform) :
 	mPlatform(platform),
-	mActiveWindow(0)
+	mActiveWindow(0),
+	mEnteredWindow(0)
 {
 }
 
@@ -139,6 +141,27 @@ QWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 			return window->window();
 	}
 	return 0;
+}
+
+void QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons) {
+	QWindow *window = getWindowAt(pos);
+	if(window != mEnteredWindow) {
+		if(mEnteredWindow)
+			QWindowSystemInterface::handleLeaveEvent(mEnteredWindow);
+	}
+
+	if(window) {
+		//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
+		Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+		QPoint wTopLeft = window->geometry().topLeft();
+		QPoint localCoord = pos - wTopLeft;
+		if(window != mEnteredWindow)
+			QWindowSystemInterface::handleEnterEvent(mEnteredWindow, localCoord, pos);
+	    QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, buttons, modifiers);
+	}
+
+	if(window != mEnteredWindow)
+		mEnteredWindow = window;
 }
 
 QT_END_NAMESPACE

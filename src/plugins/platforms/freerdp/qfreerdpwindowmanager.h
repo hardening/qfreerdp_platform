@@ -54,11 +54,14 @@ public:
 	void setActiveWindow(QFreeRdpWindow *w) {  mActiveWindow = w; }
 
 	QFreeRdpWindow *getActiveWindow() const { return mActiveWindow; }
+
+	void handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons);
 protected:
 	QFreeRdpPlatform *mPlatform;
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mActiveWindow;
+	QWindow *mEnteredWindow;
 };
 
 

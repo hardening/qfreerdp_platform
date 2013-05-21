@@ -44,7 +44,6 @@ struct RdpPeerContext {
 	QFreeRdpPeer *rdpPeer;
 
 	/* file descriptors and associated events */
-	int fds[32];
 	QSocketNotifier *events[32];
 
 	RFX_CONTEXT *rfx_context;
@@ -63,9 +62,9 @@ rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context)
 	rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8A8);
 
 	context->nsc_context = nsc_context_new();
-	rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8A8);
+	nsc_context_set_pixel_format(context->nsc_context, RDP_PIXEL_FORMAT_B8G8R8A8);
 
-	context->encode_stream = Stream_New(0, 65536);
+	context->encode_stream = Stream_New(0, 0x10000);
 }
 
 static void
@@ -86,6 +85,7 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mFlags(0),
 		mPlatform(platform),
 		mClient(client),
+		mBogusCheckFileDescriptor(0),
 		mLastButtons(Qt::NoButton),
 		mXkbContext(0),
 		mXkbKeymap(0),
@@ -95,6 +95,8 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 }
 
 QFreeRdpPeer::~QFreeRdpPeer() {
+	for(int i = 0; i < 32; i++)
+		;
 }
 
 void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
@@ -158,6 +160,7 @@ void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 /*flags*/)
 		peer->repaint(QRegion(refreshRect), src);
 }
 
+#ifndef NO_XKB_SUPPORT
 extern "C" {
 extern DWORD KEYCODE_TO_VKCODE_EVDEV[128];
 }
@@ -168,7 +171,7 @@ static void init_vk_translator(void)
 
 	memset(vk_to_keycode, 0, sizeof(vk_to_keycode));
 	for(i = 0; i < 256; i++)
-		vk_to_keycode[KEYCODE_TO_VKCODE_EVDEV[i] & 0xff] = i/*-8*/;
+		vk_to_keycode[KEYCODE_TO_VKCODE_EVDEV[i] & 0xff] = i/* - 8*/;
 }
 
 static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
@@ -189,6 +192,7 @@ static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
 
     return ret;
 }
+#endif
 
 static const uint32_t KeyTbl[] = {
     XK_Escape,                  Qt::Key_Escape,
@@ -289,10 +293,12 @@ void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
 	rdpSettings *settings = rdpPeer->mClient->settings;
 
+#ifndef NO_XKB_SUPPORT
 	if(!rdpPeer->mXkbKeymap) {
 		qWarning("%s: no keyboard support, event dropped", __func__);
 		return;
 	}
+#endif
 
 	if( !(flags & (KBD_FLAGS_DOWN|KBD_FLAGS_RELEASE)) ) {
 		qWarning("%s: notified for nothing, flags=%x", __func__, flags);
@@ -309,11 +315,7 @@ void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 		return;
 	}
 	uint32_t scan_code = vk_to_keycode[vk_code];
-
 	bool isDown = (flags & KBD_FLAGS_DOWN);
-    const xkb_keysym_t *syms;
-    uint32_t numSyms = xkb_key_get_syms(rdpPeer->mXkbState, scan_code, &syms);
-    xkb_state_update_key(rdpPeer->mXkbState, scan_code, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
 
 	QFreeRdpWindow *focusWindow = rdpPeer->mPlatform->mWindowManager->getActiveWindow();
 	if(!focusWindow) {
@@ -321,8 +323,13 @@ void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 		return;
 	}
 
+#ifndef NO_XKB_SUPPORT
+    const xkb_keysym_t *syms = 0;
+    uint32_t numSyms = xkb_key_get_syms(rdpPeer->mXkbState, scan_code, &syms);
+    xkb_state_update_key(rdpPeer->mXkbState, scan_code, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+
 	qWarning("%s: numSyms:%d code=0x%x vkCode=0x%x scanCode=0x%x", __func__, numSyms,
-			code, vk_code, scan_code);
+			full_code, vk_code, scan_code);
     if (numSyms == 1) {
         xkb_keysym_t xsym = syms[0];
         Qt::KeyboardModifiers modifiers = translateModifiers(rdpPeer->mXkbState);
@@ -335,11 +342,12 @@ void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 		QWindowSystemInterface::handleExtendedKeyEvent(focusWindow->window(),
 													   ++keytime, type, qtsym,
 													   modifiers,
-													   scan_code, 0, 0,
+													   0, 0, 0,
 													   QString::fromLatin1(s));
     } else {
     	qDebug("no sending anything");
     }
+#endif
 }
 
 void QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 flags, UINT16 code)
@@ -392,14 +400,16 @@ static const char *rdp_keyboard_types[] = {
 };
 
 BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
+#ifndef NO_XKB_SUPPORT
 	struct xkb_rule_names xkbRuleNames;
+#endif
+
 	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
 	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
 	rdpSettings *settings = client->settings;
 
-	rdpPeer->mPlatform->getScreen()->setGeometry(0, 0, settings->DesktopWidth,
-			settings->DesktopHeight);
 
+#ifndef NO_XKB_SUPPORT
 	memset(&xkbRuleNames, 0, sizeof(xkbRuleNames));
 	xkbRuleNames.rules = "evdev";
 	if(settings->KeyboardType <= 7)
@@ -427,8 +437,18 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 			(xkb_keymap_compile_flags)0);
 	if(rdpPeer->mXkbKeymap)
 		rdpPeer->mXkbState = xkb_state_new(rdpPeer->mXkbKeymap);
+#endif
 
+	rdpPeer->mPlatform->getScreen()->setGeometry(0, 0, settings->DesktopWidth,
+			settings->DesktopHeight);
 	rdpPeer->mFlags |= PEER_ACTIVATED;
+
+	// full refresh
+	QRect refreshRect(0, 0, settings->DesktopWidth, settings->DesktopHeight);
+	const QImage *src = rdpPeer->mPlatform->mScreen->getScreenBits();
+	if(src)
+		rdpPeer->repaint(QRegion(refreshRect), src);
+
 	return TRUE;
 }
 
@@ -454,7 +474,7 @@ bool QFreeRdpPeer::init() {
 
 	mClient->Capabilities = QFreeRdpPeer::xf_peer_capabilities;
 	mClient->PostConnect = QFreeRdpPeer::xf_peer_post_connect;
-	//mClient->Activate = xf_peer_activate;
+	//mClient->Activate = QFreeRdpPeer::xf_peer_activate;
 	mClient->update->SuppressOutput = xf_suppress_output;
 
 	input = mClient->input;
@@ -474,25 +494,36 @@ bool QFreeRdpPeer::init() {
 	for(i = 0; i < rcount; i++) {
 		fd = (int)(long)(rfds[i]);
 
-		peerCtx->fds[i] = fd;
 		peerCtx->events[i] = new QSocketNotifier(fd, QSocketNotifier::Read);
 		mPlatform->getDispatcher()->registerSocketNotifier(peerCtx->events[i]);
 
-		connect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes()) );
+		connect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 	}
 
 	for( ; i < 32; i++) {
-		peerCtx->fds[i] = -1;
 		peerCtx->events[i] = 0;
 	}
 	return true;
 }
 
-void QFreeRdpPeer::incomingBytes() {
+void QFreeRdpPeer::incomingBytes(int) {
 	//qDebug() << "incomingBytes()";
+	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 	if(!mClient->CheckFileDescriptor(mClient)) {
-		qDebug() << "error checking file descriptor";
-		//delete this;
+		mBogusCheckFileDescriptor++;
+
+		if(mBogusCheckFileDescriptor > 2) {
+			qDebug() << "error checking file descriptor";
+			mClient->Close(mClient);
+			for(int i = 0; i < 32; i++) {
+				if(peerCtx->events[i]) {
+					disconnect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+					mPlatform->getDispatcher()->unregisterSocketNotifier(peerCtx->events[i]);
+				}
+			}
+			delete this;
+			return;
+		}
 	}
 }
 

@@ -19,6 +19,7 @@ SOURCES += main.cpp 				\
 		qfreerdpintegration.cpp		\
 		qfreerdpplatform.cpp 		\
 		qfreerdpscreen.cpp			\
+		qfreerdpcursor.cpp			\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
 		qfreerdppeer.cpp			\
@@ -27,6 +28,7 @@ SOURCES += main.cpp 				\
 
 HEADERS += qfreerdpintegration.h \
 	qfreerdpscreen.h \
+	qfreerdpcursor.h			\
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
