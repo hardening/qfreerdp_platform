@@ -87,21 +87,28 @@ void qimage_bitblt(const QRect &srcRect, const QImage *srcImg, const QPoint &dst
 	}
 }
 
-void qimage_fillrect(const QRect &rect, QImage *dest, quint32 /*color*/) {
+void qimage_fillrect(const QRect &rect, QImage *dest, quint32 color) {
+	// prepare first line
+	quint32 *firstLine = (quint32 *)dest->bits();
+	for(int w = 0; w < rect.width(); w++, firstLine++)
+		*firstLine = color;
+
+	// and copy it
 	int stride = dest->bytesPerLine();
 	QPoint topLeft = rect.topLeft();
-	uchar *ptr = dest->bits() + (topLeft.y() * stride) + (topLeft.x() * 4);
+	uchar *ptr = dest->bits() +
+			((topLeft.y() + 1) * stride) +
+			(topLeft.x() * 4);
 
-	for(int h = 0; h < rect.height(); h++) {
-		memset(ptr, 0xff, rect.width() * 4);
-		ptr += stride;
-	}
+	for(int h = 1; h < rect.height(); h++, ptr += stride)
+		memcpy(ptr, dest->bits(), stride);
 }
 
 
 void QFreeRdpWindowManager::repaint(const QRegion &region) {
-	QImage *dest = mPlatform->mScreen->getScreenBits();
-	QRect screenGeometry = mPlatform->mScreen->geometry();
+	QFreeRdpScreen *screen = mPlatform->getScreen();
+	QImage *dest = screen->getScreenBits();
+	QRect screenGeometry = screen->geometry();
 
 	QRegion toRepaint = region.intersected(screenGeometry); // clip to screen size
 
@@ -123,11 +130,9 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 		toRepaint -= windowRect;
 	}
 
-
 	foreach(QRect repaintRect, toRepaint.rects()) {
 		qimage_fillrect(repaintRect, dest, 0);
 	}
-
 
 	mPlatform->repaint( region.intersected(screenGeometry) );
 }

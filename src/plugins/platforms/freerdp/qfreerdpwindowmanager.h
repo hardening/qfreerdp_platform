@@ -31,6 +31,9 @@ QT_BEGIN_NAMESPACE
 class QFreeRdpWindow;
 class QFreeRdpPlatform;
 
+/**
+ *
+ */
 class QFreeRdpWindowManager {
 public:
 	QFreeRdpWindowManager(QFreeRdpPlatform *platform);

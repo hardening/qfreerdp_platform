@@ -43,9 +43,8 @@ QStringList QFreeRdpIntegrationPlugin::keys() const
 
 QPlatformIntegration *QFreeRdpIntegrationPlugin::create(const QString& system, const QStringList& paramList)
 {
-    Q_UNUSED(paramList);
     if (system.toLower() == "freerdp")
-        return new QFreeRdpIntegration();
+        return new QFreeRdpIntegration(paramList);
 
     return 0;
 }

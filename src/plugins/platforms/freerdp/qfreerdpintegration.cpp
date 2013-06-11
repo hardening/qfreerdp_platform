@@ -43,7 +43,7 @@
 QT_BEGIN_NAMESPACE
 
 
-QFreeRdpIntegration::QFreeRdpIntegration()
+QFreeRdpIntegration::QFreeRdpIntegration(const QStringList& paramList)
     : mFontDb(new QGenericUnixFontDatabase())
     , mEventDispatcher(createUnixEventDispatcher())
 {
@@ -52,7 +52,7 @@ QFreeRdpIntegration::QFreeRdpIntegration()
 	//Disable desktop settings for now (or themes crash)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
 
-	mPlatform = new QFreeRdpPlatform(mEventDispatcher);
+	mPlatform = new QFreeRdpPlatform(paramList, mEventDispatcher);
 	screenAdded(mPlatform->getScreen());
     mFontDb = new QGenericUnixFontDatabase();
 }

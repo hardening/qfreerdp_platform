@@ -21,6 +21,7 @@
  */
 
 #include "qfreerdpwindow.h"
+#include "qfreerdpscreen.h"
 #include "qfreerdpbackingstore.h"
 #include "qfreerdpplatform.h"
 #include "qfreerdpwindowmanager.h"
@@ -53,11 +54,19 @@ void QFreeRdpWindow::setBackingStore(QFreeRdpBackingStore *b) {
 	mBackingStore = b;
 }
 
+
 void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-	if(state & Qt::WindowActive)
-		mPlatform->mWindowManager->setActiveWindow(this);
+    qDebug("QFreeRdpWindow::%s(0x%x)", __func__, (int)state);
 	QPlatformWindow::setWindowState(state);
+
+    if(state & Qt::WindowActive)
+		mPlatform->mWindowManager->setActiveWindow(this);
+	if(state & Qt::WindowFullScreen) {
+		QRect r = mPlatform->getScreen()->geometry();
+		setGeometry(r);
+		QWindowSystemInterface::handleGeometryChange(window(), r);
+		QWindowSystemInterface::flushWindowSystemEvents();
+	}
 }
 
 void QFreeRdpWindow::raise() {

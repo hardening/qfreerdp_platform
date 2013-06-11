@@ -1,0 +1,8 @@
+<RCC>
+  <qresource>
+    <file>forms/greeter.ui</file>
+  </qresource>
+  <qresource prefix="images">
+    <file>forms/image.png</file>
+  </qresource>
+</RCC>

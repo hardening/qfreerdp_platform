@@ -45,22 +45,22 @@ public:
     ~QFreeRdpPeer();
 
     bool init();
-    void repaint(const QRegion &rect, const QImage *src);
+    void repaint(const QRegion &rect);
 
     QSize getGeometry();
 
 protected:
-	void repaint_raw(const QRegion &rect, const QImage *src);
+	void repaint_raw(const QRegion &rect);
 
 public slots:
 	void incomingBytes(int sock);
 
 protected:
-	/** @{
-	 * freerdp callbacks
-	 */
+	/** freerdp callbacks
+	 * @{ */
 	static BOOL xf_peer_capabilities(freerdp_peer* client);
-	static BOOL	xf_peer_post_connect(freerdp_peer *client);
+	static BOOL xf_peer_post_connect(freerdp_peer *client);
+	static BOOL xf_peer_activate(freerdp_peer *client);
 	static void xf_mouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
 	static void xf_extendedMouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
 	static void xf_input_synchronize_event(rdpInput *input, UINT32 flags);
@@ -77,6 +77,7 @@ protected:
 		PEER_OUTPUT_DISABLED = 0x0002
 	};
 	QFlags<PeerFlags> mFlags;
+
     QFreeRdpPlatform *mPlatform;
     freerdp_peer *mClient;
     int mBogusCheckFileDescriptor;

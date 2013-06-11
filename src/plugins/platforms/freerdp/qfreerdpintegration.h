@@ -37,7 +37,7 @@ class QFreeRdpPlatform;
 class QFreeRdpIntegration : public QPlatformIntegration
 {
 public:
-	QFreeRdpIntegration();
+	QFreeRdpIntegration(const QStringList& paramList);
     ~QFreeRdpIntegration();
 
     /** @overload QPlatformIntegration

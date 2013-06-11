@@ -38,13 +38,21 @@ class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 
+/**
+ *
+ */
 class QFreeRdpPlatform : public QObject {
+	friend class QFreeRdpScreen;
+	friend class QFreeRdpBackingStore;
+	friend class QFreeRdpWindow;
+	friend class QFreeRdpPeer;
 public:
 	/**
 	 * @param dispatcher
 	 */
-	QFreeRdpPlatform(QAbstractEventDispatcher *dispatcher);
+	QFreeRdpPlatform(const QStringList& paramList, QAbstractEventDispatcher *dispatcher);
 
+	/** @return */
 	QFreeRdpScreen *getScreen() { return mScreen; }
 
 	/** registers a RDP peer
@@ -52,6 +60,9 @@ public:
 	 */
 	void registerPeer(QFreeRdpPeer *peer);
 
+	/**
+	 * @param region
+	 */
 	void repaint(const QRegion &region);
 
 	void registerBackingStore(QWindow *w, QFreeRdpBackingStore *back);
@@ -61,12 +72,11 @@ public:
 
 	QPlatformWindow *newWindow(QWindow *window);
 
-	QFreeRdpWindow *getFrontWindow();
 
 	void configureClient(rdpSettings *settings);
 
-public:
-//protected:
+//public:
+protected:
 	QAbstractEventDispatcher *mDispatcher;
     QFreeRdpPlatformConfig *config;
     QFreeRdpScreen *mScreen;

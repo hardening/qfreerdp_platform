@@ -7,8 +7,7 @@
 
 QT_USE_NAMESPACE
 
-QFreeRdpCursor::QFreeRdpCursor(QFreeRdpScreen *screen)
-    : mScreen(screen)
+QFreeRdpCursor::QFreeRdpCursor(QFreeRdpScreen *screen) : mScreen(screen)
 {
 }
 
@@ -18,10 +17,11 @@ QFreeRdpCursor::~QFreeRdpCursor()
 
 void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window)
 {
-    qDebug("%s(%p, %p)\n", __func__, (void *)cursor, (void *)window);
+	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
+	qDebug("QFreeRdpCursor::%s(%p, %p) = %d", __func__, (void *)cursor, (void *)window, newShape);
 
     //struct wl_cursor *waylandCursor = 0;
-    const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
+
     if (newShape < Qt::BitmapCursor) {
         //waylandCursor = requestCursor((WaylandCursor)newShape);
     } else if (newShape == Qt::BitmapCursor) {

@@ -49,7 +49,7 @@ public:
 
     QImage *getScreenBits() { return mScreenBits; }
 public slots:
-    void setGeometry(int x, int y, int width, int height);
+    void setGeometry(const QRect &geometry);
 protected:
 protected:
     QRect mGeometry;

@@ -95,8 +95,8 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 }
 
 QFreeRdpPeer::~QFreeRdpPeer() {
-	for(int i = 0; i < 32; i++)
-		;
+	/*for(int i = 0; i < 32; i++)
+		;*/
 }
 
 void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
@@ -157,7 +157,7 @@ void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 /*flags*/)
 	QFreeRdpPeer *peer = peerCtx->rdpPeer;
 	const QImage *src = peer->mPlatform->mScreen->getScreenBits();
 	if(src)
-		peer->repaint(QRegion(refreshRect), src);
+		peer->repaint(QRegion(refreshRect));
 }
 
 #ifndef NO_XKB_SUPPORT
@@ -439,16 +439,32 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		rdpPeer->mXkbState = xkb_state_new(rdpPeer->mXkbKeymap);
 #endif
 
-	rdpPeer->mPlatform->getScreen()->setGeometry(0, 0, settings->DesktopWidth,
-			settings->DesktopHeight);
+	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
+	//TODO: see the user's monitor layout
+	QRect currentGeometry = screen->geometry();
+	QRect peerGeometry(0, 0, settings->DesktopWidth, settings->DesktopHeight);
+	if(currentGeometry != peerGeometry)
+		screen->setGeometry(peerGeometry);
 	rdpPeer->mFlags |= PEER_ACTIVATED;
 
 	// full refresh
+	const QImage *src = screen->getScreenBits();
+	if(src)
+		rdpPeer->repaint(QRegion(peerGeometry));
+
+	return TRUE;
+}
+
+BOOL QFreeRdpPeer::xf_peer_activate(freerdp_peer * /*client*/) {
+/*	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
+	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
+	rdpSettings *settings = client->settings;
+
 	QRect refreshRect(0, 0, settings->DesktopWidth, settings->DesktopHeight);
 	const QImage *src = rdpPeer->mPlatform->mScreen->getScreenBits();
 	if(src)
 		rdpPeer->repaint(QRegion(refreshRect), src);
-
+*/
 	return TRUE;
 }
 
@@ -474,7 +490,7 @@ bool QFreeRdpPeer::init() {
 
 	mClient->Capabilities = QFreeRdpPeer::xf_peer_capabilities;
 	mClient->PostConnect = QFreeRdpPeer::xf_peer_post_connect;
-	//mClient->Activate = QFreeRdpPeer::xf_peer_activate;
+	mClient->Activate = QFreeRdpPeer::xf_peer_activate;
 	mClient->update->SuppressOutput = xf_suppress_output;
 
 	input = mClient->input;
@@ -517,6 +533,7 @@ void QFreeRdpPeer::incomingBytes(int) {
 			mClient->Close(mClient);
 			for(int i = 0; i < 32; i++) {
 				if(peerCtx->events[i]) {
+					peerCtx->events[i]->setEnabled(false);
 					disconnect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 					mPlatform->getDispatcher()->unregisterSocketNotifier(peerCtx->events[i]);
 				}
@@ -527,13 +544,13 @@ void QFreeRdpPeer::incomingBytes(int) {
 	}
 }
 
-void QFreeRdpPeer::repaint(const QRegion &region, const QImage *src) {
+void QFreeRdpPeer::repaint(const QRegion &region) {
 	if(!mFlags.testFlag(PEER_ACTIVATED))
 		return;
 	if(mFlags.testFlag(PEER_OUTPUT_DISABLED))
 		return;
 
-	repaint_raw(region, src);
+	repaint_raw(region);
 }
 
 void qimage_flipped_subrect(const QRect &rect, const QImage *img, BYTE *dest) {
@@ -555,7 +572,7 @@ void qt_fillcolor(BYTE *dest, int count, UINT32 color) {
 }
 #endif
 
-void QFreeRdpPeer::repaint_raw(const QRegion &region, const QImage *src) {
+void QFreeRdpPeer::repaint_raw(const QRegion &region) {
 	rdpUpdate *update = mClient->update;
 	SURFACE_BITS_COMMAND *cmd = &update->surface_bits_command;
 	SURFACE_FRAME_MARKER *marker = &update->surface_frame_marker;
@@ -566,6 +583,7 @@ void QFreeRdpPeer::repaint_raw(const QRegion &region, const QImage *src) {
 	marker->frameAction = SURFACECMD_FRAMEACTION_BEGIN;
 	update->SurfaceFrameMarker(mClient->context, marker);
 
+	const QImage *src = mPlatform->getScreen()->getScreenBits();
 	foreach(QRect rect, region.rects()) {
 		cmd->width = rect.width();
 		cmd->destLeft = rect.left();

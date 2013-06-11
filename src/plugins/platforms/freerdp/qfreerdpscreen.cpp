@@ -35,10 +35,10 @@ QT_BEGIN_NAMESPACE
 QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height):
 	mPlatform(platform), mCursor(new QFreeRdpCursor(this))
 {
-	qDebug() << "QFreeRdpScreen::" << __func__ << "()";
+	qDebug("QFreeRdpScreen::%s(%d x %d)", __func__, width, height);
     mGeometry = QRect(0, 0, width, height);
     mScreenBits = new QImage(width, height, QImage::Format_ARGB32_Premultiplied);
-    mScreenBits->fill(Qt::white);
+    mScreenBits->fill(Qt::black);
 }
 
 QFreeRdpScreen::~QFreeRdpScreen() {
@@ -67,14 +67,15 @@ QPlatformCursor *QFreeRdpScreen::cursor() const {
 	return mCursor;
 }
 
-void QFreeRdpScreen::setGeometry(int x, int y, int width, int height) {
-	QRect newGeometry(x, y, width, height);
-	if(newGeometry == mGeometry)
+void QFreeRdpScreen::setGeometry(const QRect &geometry) {
+	qDebug("QFreeRdpScreen::%s(%d,%d, %dx%d)", __func__, geometry.left(), geometry.top(),
+			geometry.width(), geometry.height());
+	if(geometry == mGeometry)
 		return;
 
-	qDebug() << "QFreeRdpScreen::" << __func__ << "()";
-	mGeometry = newGeometry;
-    mScreenBits = new QImage(width, height, QImage::Format_ARGB32_Premultiplied);
+	delete mScreenBits;
+	mGeometry = geometry;
+    mScreenBits = new QImage(geometry.width(), geometry.height(), QImage::Format_ARGB32_Premultiplied);
     mScreenBits->fill(Qt::white);
 
     QWindowSystemInterface::handleScreenGeometryChange(screen(), mGeometry);
