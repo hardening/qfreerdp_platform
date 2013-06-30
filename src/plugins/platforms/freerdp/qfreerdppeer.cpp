@@ -39,6 +39,7 @@
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <X11/keysym.h>
 
+
 struct RdpPeerContext {
 	rdpContext _p;
 	QFreeRdpPeer *rdpPeer;
@@ -95,8 +96,24 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 }
 
 QFreeRdpPeer::~QFreeRdpPeer() {
-	/*for(int i = 0; i < 32; i++)
-		;*/
+	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
+
+	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
+	for(int i = 0; i < 32; i++) {
+		QSocketNotifier *notifier = peerCtx->events[i];
+		if(notifier) {
+			notifier->setEnabled(false);
+			disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+			dispatcher->unregisterSocketNotifier(notifier);
+			delete notifier;
+		}
+	}
+
+	mClient->Close(mClient);
+
+	freerdp_peer_context_free(mClient);
+	freerdp_peer_free(mClient);
+	mPlatform->unregisterPeer(this);
 }
 
 void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
@@ -140,24 +157,13 @@ void QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, 
 
 void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 /*flags*/)
 {
+	qDebug("QFreeRdpPeer::%s()", __func__);
 	freerdp_peer* client = input->context->peer;
-	//rdpPointerUpdate *pointer = client->update->pointer;
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 
-
-	/* disable pointer on the client side
-	pointer->pointer_system.type = SYSPTR_NULL;
-	pointer->PointerSystem(client->context, &pointer->pointer_system);
-	*/
-
 	/* sends a full refresh */
-	qDebug() << "xf_input_synchronize_event()";
 	QRect refreshRect(0, 0, client->settings->DesktopWidth, client->settings->DesktopHeight);
-
-	QFreeRdpPeer *peer = peerCtx->rdpPeer;
-	const QImage *src = peer->mPlatform->mScreen->getScreenBits();
-	if(src)
-		peer->repaint(QRegion(refreshRect));
+	peerCtx->rdpPeer->repaint(QRegion(refreshRect));
 }
 
 #ifndef NO_XKB_SUPPORT
@@ -408,6 +414,10 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
 	rdpSettings *settings = client->settings;
 
+	if(!settings->SurfaceCommandsEnabled) {
+		qWarning("QFreeRdpPeer::%s: peer does not support Surface commands", __func__);
+		return FALSE;
+	}
 
 #ifndef NO_XKB_SUPPORT
 	memset(&xkbRuleNames, 0, sizeof(xkbRuleNames));
@@ -507,41 +517,36 @@ bool QFreeRdpPeer::init() {
 		return false;
 	}
 
+	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
 	for(i = 0; i < rcount; i++) {
 		fd = (int)(long)(rfds[i]);
 
 		peerCtx->events[i] = new QSocketNotifier(fd, QSocketNotifier::Read);
-		mPlatform->getDispatcher()->registerSocketNotifier(peerCtx->events[i]);
+		dispatcher->registerSocketNotifier(peerCtx->events[i]);
 
 		connect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 	}
 
-	for( ; i < 32; i++) {
+	for( ; i < 32; i++)
 		peerCtx->events[i] = 0;
-	}
 	return true;
 }
 
 void QFreeRdpPeer::incomingBytes(int) {
 	//qDebug() << "incomingBytes()";
 	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
-	if(!mClient->CheckFileDescriptor(mClient)) {
-		mBogusCheckFileDescriptor++;
+	if(mClient->CheckFileDescriptor(mClient))
+		return;
 
-		if(mBogusCheckFileDescriptor > 2) {
-			qDebug() << "error checking file descriptor";
-			mClient->Close(mClient);
-			for(int i = 0; i < 32; i++) {
-				if(peerCtx->events[i]) {
-					peerCtx->events[i]->setEnabled(false);
-					disconnect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
-					mPlatform->getDispatcher()->unregisterSocketNotifier(peerCtx->events[i]);
-				}
-			}
-			delete this;
-			return;
-		}
-	}
+	// when here the connexion may be broken
+	mBogusCheckFileDescriptor++;
+
+	// the first call that fails is almost always a false positive
+	if(mBogusCheckFileDescriptor == 1)
+		return;
+
+	qDebug() << "error checking file descriptor";
+	delete this;
 }
 
 void QFreeRdpPeer::repaint(const QRegion &region) {

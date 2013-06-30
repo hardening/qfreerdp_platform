@@ -23,8 +23,8 @@ SOURCES += main.cpp 				\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
 		qfreerdppeer.cpp			\
-		qfreerdplistener.cpp		\
 		qfreerdpwindowmanager.cpp
+
 
 HEADERS += qfreerdpintegration.h \
 	qfreerdpscreen.h \

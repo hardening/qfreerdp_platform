@@ -46,6 +46,7 @@ class QFreeRdpPlatform : public QObject {
 	friend class QFreeRdpBackingStore;
 	friend class QFreeRdpWindow;
 	friend class QFreeRdpPeer;
+	friend class QFreeRdpListener;
 public:
 	/**
 	 * @param dispatcher
@@ -59,6 +60,11 @@ public:
 	 * @param peer
 	 */
 	void registerPeer(QFreeRdpPeer *peer);
+
+	/** unregisters a RDP peer
+	 * @param peer
+	 */
+	void unregisterPeer(QFreeRdpPeer *peer);
 
 	/**
 	 * @param region

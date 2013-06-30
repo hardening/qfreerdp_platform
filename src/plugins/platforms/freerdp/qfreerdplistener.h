@@ -42,9 +42,6 @@ public:
 	 */
 	QFreeRdpListener(QFreeRdpPlatform *parent);
 
-	/** @return	 */
-	QFreeRdpPeer *waitConnection(unsigned long delay);
-
 	/** */
 	void initialize();
 
@@ -54,14 +51,9 @@ protected slots:
 protected:
 	static void rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client);
 
-
-	volatile bool mDoRun;
 	freerdp_listener *listener;
-	QSocketNotifier *listenerNotifier;
+	QSocketNotifier *mSocketNotifier;
 
-	QFreeRdpPeer *mLastPeer;
-	QMutex mLock;
-	QWaitCondition mPeerCond;
 	QFreeRdpPlatform *mPlatform;
 };
 

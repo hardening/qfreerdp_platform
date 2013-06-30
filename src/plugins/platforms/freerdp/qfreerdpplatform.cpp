@@ -32,13 +32,13 @@
 /** @brief private data for FreeRdpPlatform */
 struct QFreeRdpPlatformConfig {
 	/**
-	 * @param parent
+	 * @param params
 	 */
 	QFreeRdpPlatformConfig(const QStringList &params);
 
-
 	char *bind_address;
 	int port;
+	int fixed_socket;
 
 	char *server_cert;
 	char *server_key;
@@ -51,7 +51,7 @@ struct QFreeRdpPlatformConfig {
 };
 
 QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
-	bind_address(0), port(3389),
+	bind_address(0), port(3389), fixed_socket(-1),
 	server_cert( strdup("/home/david/.freerdp/server/server.crt") ),
 	server_key( strdup("/home/david/.freerdp/server/server.key") ),
 	rdp_key( strdup("/home/david/.freerdp/server/server.key") ),
@@ -66,33 +66,105 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		if(param.startsWith(QLatin1String("width="))) {
 			subVal = param.mid(strlen("width="));
 			val = subVal.toInt(&ok);
-			if(!ok)
+			if(!ok) {
 				qWarning() << "invalid width" << subVal;
+				// TODO: raise
+			}
 
 			screenSz.setWidth(val);
 		} else if(param.startsWith(QLatin1String("height="))) {
 			subVal = param.mid(strlen("height="));
 			val = subVal.toInt(&ok);
-			if(!ok)
+			if(!ok) {
 				qWarning() << "invalid height" << subVal;
+				// TODO: raise
+			}
 			screenSz.setHeight(val);
+		} else if(param.startsWith(QLatin1String("socket="))) {
+			subVal = param.mid(strlen("socket="));
+			fixed_socket = subVal.toInt(&ok);
+			if(!ok) {
+				qWarning() << "invalid socket" << subVal;
+				// TODO: raise
+			}
 		}
 	}
 }
 
+QFreeRdpListener::QFreeRdpListener(QFreeRdpPlatform *platform) :
+	listener(0),
+	mSocketNotifier(0),
+	mPlatform(platform)
+{
+}
+
+
+void QFreeRdpListener::rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client)
+{
+	qDebug() << "got an incoming connection";
+
+	QFreeRdpListener *listener = (QFreeRdpListener *)instance->param4;
+	QFreeRdpPeer *peer = new QFreeRdpPeer(listener->mPlatform, client);
+	if(!peer->init()) {
+		delete peer;
+		return;
+	}
+
+	listener->mPlatform->registerPeer(peer);
+}
+
+void QFreeRdpListener::incomingNewPeer() {
+	if(!listener->CheckFileDescriptor(listener))
+		qDebug() << "unable to CheckFileDescriptor\n";
+}
+
+
+void QFreeRdpListener::initialize() {
+	int fd;
+	int rcount = 0;
+	void* rfds[32];
+	listener = freerdp_listener_new();
+	listener->PeerAccepted = QFreeRdpListener::rdp_incoming_peer;
+	listener->param4 = this;
+	if(!listener->Open(listener, mPlatform->config->bind_address, mPlatform->config->port)) {
+		qDebug() << "unable to bind rdp socket\n";
+		return;
+	}
+
+	if (!listener->GetFileDescriptor(listener, rfds, &rcount) || rcount < 1) {
+		qDebug("Failed to get FreeRDP file descriptor\n");
+		return;
+	}
+
+	fd = (int)(long)(rfds[0]);
+	mSocketNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
+	mPlatform->getDispatcher()->registerSocketNotifier(mSocketNotifier);
+
+	connect(mSocketNotifier, SIGNAL(activated(int)), this, SLOT(incomingNewPeer()));
+}
+
+
 QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList, QAbstractEventDispatcher *dispatcher) :
-	mDispatcher(dispatcher)
+	mDispatcher(dispatcher), mListener(0)
 {
 	config = new QFreeRdpPlatformConfig(paramList);
 	mScreen = new QFreeRdpScreen(this, config->screenSz.width(), config->screenSz.height());
 
 	mWindowManager = new QFreeRdpWindowManager(this);
-	mListener = new QFreeRdpListener(this);
-    mListener->initialize();
+	if(config->fixed_socket == -1) {
+		mListener = new QFreeRdpListener(this);
+		mListener->initialize();
+	} else {
+
+	}
 }
 
 void QFreeRdpPlatform::registerPeer(QFreeRdpPeer *peer) {
 	config->peers.push_back(peer);
+}
+
+void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
+	config->peers.removeAll(peer);
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
@@ -119,10 +191,10 @@ QPlatformWindow *QFreeRdpPlatform::newWindow(QWindow *window) {
 
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
-	settings->RdpKeyFile = config->rdp_key;
+	settings->RdpKeyFile = strdup(config->rdp_key);
 	if(config->tls_enabled) {
-		settings->CertificateFile = config->server_cert;
-		settings->PrivateKeyFile = config->server_key;
+		settings->CertificateFile = strdup(config->server_cert);
+		settings->PrivateKeyFile = strdup(config->server_key);
 	} else {
 		settings->TlsSecurity = FALSE;
 	}
