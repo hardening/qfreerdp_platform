@@ -38,6 +38,7 @@
 #include <QMutexLocker>
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <X11/keysym.h>
+#include <ctype.h>
 
 
 struct RdpPeerContext {
@@ -486,7 +487,7 @@ bool QFreeRdpPeer::init() {
 	rdpInput *input;
 	RdpPeerContext *peerCtx;
 
-	mClient->context_size = sizeof(RdpPeerContext);
+	mClient->ContextSize = sizeof(RdpPeerContext);
 	mClient->ContextNew = (psPeerContextNew)rdp_peer_context_new;
 	mClient->ContextFree = (psPeerContextFree)rdp_peer_context_free;
 	freerdp_peer_context_new(mClient);
@@ -534,7 +535,7 @@ bool QFreeRdpPeer::init() {
 
 void QFreeRdpPeer::incomingBytes(int) {
 	//qDebug() << "incomingBytes()";
-	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
+	//RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 	if(mClient->CheckFileDescriptor(mClient))
 		return;
 
