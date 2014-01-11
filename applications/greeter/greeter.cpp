@@ -5,7 +5,7 @@
 #include "greeter.h"
 
 
-Greeter::Greeter(QWidget *parent) : QWidget(parent), mLoginEntry(0), mPasswordEntry(0),
+Greeter::Greeter(QWidget *parent) : QMainWindow(parent), mLoginEntry(0), mPasswordEntry(0),
 	mTimer(new QTimer(this))
 {
 	QWidget *widget = loadUiFile();

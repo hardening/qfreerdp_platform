@@ -2,6 +2,7 @@
 #define __GREATER_H__
 
 #include <QtWidgets/QWidget>
+#include <QtWidgets/QMainWindow>
 #include <QTimer>
 
 QT_BEGIN_NAMESPACE
@@ -13,7 +14,7 @@ QT_END_NAMESPACE
 /**
  *
  */
-class Greeter : public QWidget
+class Greeter : public QMainWindow
 {
 	Q_OBJECT
 
