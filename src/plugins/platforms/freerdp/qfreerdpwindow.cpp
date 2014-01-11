@@ -95,6 +95,9 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 	QPlatformWindow::setGeometry(rect);
 	updateRegion += rect;
 	mPlatform->mWindowManager->repaint(updateRegion);
+
+	QWindowSystemInterface::handleGeometryChange(window(), rect);
+	QWindowSystemInterface::handleExposeEvent(window(), QRegion(rect));
 }
 
 const QImage *QFreeRdpWindow::getContent() {
