@@ -51,6 +51,8 @@ public:
 
 protected:
 	void repaint_raw(const QRegion &rect);
+	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
+	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 
 public slots:
 	void incomingBytes(int sock);
@@ -65,7 +67,7 @@ protected:
 	static void xf_extendedMouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
 	static void xf_input_synchronize_event(rdpInput *input, UINT32 flags);
 	static void xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
-	static void	xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
+	static void xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
 	static void xf_suppress_output(rdpContext* context, BYTE allow, RECTANGLE_16 *area);
 	/** @} */
 
@@ -83,10 +85,15 @@ protected:
     int mBogusCheckFileDescriptor;
 
     Qt::MouseButtons mLastButtons;
+    quint32 mKeyTime;
 #ifndef NO_XKB_SUPPORT
     struct xkb_context *mXkbContext;
     struct xkb_keymap *mXkbKeymap;
     struct xkb_state *mXkbState;
+
+	xkb_mod_index_t mCapsLockModIndex;
+	xkb_mod_index_t mNumLockModIndex;
+	xkb_mod_index_t mScrollLockModIndex;
 #endif
 };
 

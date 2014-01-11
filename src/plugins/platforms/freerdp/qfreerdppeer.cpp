@@ -21,6 +21,7 @@
  */
 
 #include <winpr/stream.h>
+//#include <freerdp/version.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/codec/rfx.h>
 #include <freerdp/codec/nsc.h>
@@ -40,6 +41,8 @@
 #include <X11/keysym.h>
 #include <ctype.h>
 
+#include <freerdp/locale/keyboard.h>
+
 
 struct RdpPeerContext {
 	rdpContext _p;
@@ -57,7 +60,7 @@ struct RdpPeerContext {
 static void
 rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context)
 {
-	context->rfx_context = rfx_context_new();
+	context->rfx_context = rfx_context_new(TRUE);
 	context->rfx_context->mode = RLGR3;
 	context->rfx_context->width = client->settings->DesktopWidth;
 	context->rfx_context->height = client->settings->DesktopHeight;
@@ -81,106 +84,114 @@ rdp_peer_context_free(freerdp_peer* /*client*/, RdpPeerContext* context)
 	free(context->rfx_rects);
 }
 
-static void init_vk_translator(void);
-
-QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
-		mFlags(0),
-		mPlatform(platform),
-		mClient(client),
-		mBogusCheckFileDescriptor(0),
-		mLastButtons(Qt::NoButton),
-		mXkbContext(0),
-		mXkbKeymap(0),
-		mXkbState(0)
-{
-	init_vk_translator();
-}
-
-QFreeRdpPeer::~QFreeRdpPeer() {
-	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
-
-	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
-	for(int i = 0; i < 32; i++) {
-		QSocketNotifier *notifier = peerCtx->events[i];
-		if(notifier) {
-			notifier->setEnabled(false);
-			disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
-			dispatcher->unregisterSocketNotifier(notifier);
-			delete notifier;
-		}
-	}
-
-	mClient->Close(mClient);
-
-	freerdp_peer_context_free(mClient);
-	freerdp_peer_free(mClient);
-	mPlatform->unregisterPeer(this);
-}
-
-void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
-	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
-	QFreeRdpPeer *peer = peerContext->rdpPeer;
-
-	Qt::MouseButtons buttons;
-	if (flags & PTR_FLAGS_BUTTON1)
-		buttons |= Qt::LeftButton;
-	if (flags & PTR_FLAGS_BUTTON2)
-		buttons |= Qt::RightButton;
-	if (flags & PTR_FLAGS_BUTTON3)
-		buttons |= Qt::MiddleButton;
-
-	if(flags & PTR_FLAGS_DOWN)
-		peer->mLastButtons |= buttons;
-	else
-		peer->mLastButtons &= (~buttons);
-
-	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
-	QWindow *window = windowManager->getWindowAt(QPoint(x, y));
-	if(window) {
-		//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
-		Qt::KeyboardModifiers modifiers = Qt::NoModifier;
-		QPoint wTopLeft = window->geometry().topLeft();
-	    QWindowSystemInterface::handleMouseEvent(window,
-	    		QPoint(x - wTopLeft.x(), y - wTopLeft.y()),
-	    		QPoint(x, y),
-	    		peer->mLastButtons, modifiers
-	    );
-
-	    /*if(mLastButtons)
-	    	windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());*/
-	}
-}
-
-void QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
-	//RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
-}
-
-
-void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 /*flags*/)
-{
-	qDebug("QFreeRdpPeer::%s()", __func__);
-	freerdp_peer* client = input->context->peer;
-	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
-
-	/* sends a full refresh */
-	QRect refreshRect(0, 0, client->settings->DesktopWidth, client->settings->DesktopHeight);
-	peerCtx->rdpPeer->repaint(QRegion(refreshRect));
-}
-
 #ifndef NO_XKB_SUPPORT
-extern "C" {
-extern DWORD KEYCODE_TO_VKCODE_EVDEV[128];
-}
-static uint32_t vk_to_keycode[256];
-static void init_vk_translator(void)
-{
-	int i;
+#include <X11/keysym.h>
+#include <xkbcommon/xkbcommon.h>
 
-	memset(vk_to_keycode, 0, sizeof(vk_to_keycode));
-	for(i = 0; i < 256; i++)
-		vk_to_keycode[KEYCODE_TO_VKCODE_EVDEV[i] & 0xff] = i/* - 8*/;
-}
 
+struct rdp_to_xkb_keyboard_layout {
+	UINT32 rdpLayoutCode;
+	const char *xkbLayout;
+};
+
+/* table reversed from
+ 	 https://github.com/awakecoding/FreeRDP/blob/master/libfreerdp/locale/xkb_layout_ids.c#L811 */
+static
+struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
+		{KBD_ARABIC_101, "ara"},
+		{KBD_BULGARIAN, "bg"},
+		{KBD_CHINESE_TRADITIONAL_US, 0},
+		{KBD_CZECH, "cz"},
+		{KBD_DANISH, "dk"},
+		{KBD_GERMAN, "de"},
+		{KBD_GREEK, "gr"},
+		{KBD_US, "us"},
+		{KBD_SPANISH, "es"},
+		{KBD_FINNISH, "fi"},
+		{KBD_FRENCH, "fr"},
+		{KBD_HEBREW, "il"},
+		{KBD_HUNGARIAN, "hu"},
+		{KBD_ICELANDIC, "is"},
+		{KBD_ITALIAN, "it"},
+		{KBD_JAPANESE, "jp"},
+		{KBD_KOREAN, "kr"},
+		{KBD_DUTCH, "nl"},
+		{KBD_NORWEGIAN, "no"},
+		{KBD_POLISH_PROGRAMMERS, 0},
+//		{KBD_PORTUGUESE_BRAZILIAN_ABN0416, 0},
+		{KBD_ROMANIAN, 0},
+		{KBD_RUSSIAN, "ru"},
+		{KBD_CROATIAN, 0},
+		{KBD_SLOVAK, 0},
+		{KBD_ALBANIAN, 0},
+		{KBD_SWEDISH, 0},
+		{KBD_THAI_KEDMANEE, 0},
+		{KBD_TURKISH_Q, 0},
+		{KBD_URDU, 0},
+		{KBD_UKRAINIAN, 0},
+		{KBD_BELARUSIAN, 0},
+		{KBD_SLOVENIAN, 0},
+		{KBD_ESTONIAN, "ee"},
+		{KBD_LATVIAN, 0},
+		{KBD_LITHUANIAN_IBM, 0},
+		{KBD_FARSI, 0},
+		{KBD_VIETNAMESE, 0},
+		{KBD_ARMENIAN_EASTERN, 0},
+		{KBD_AZERI_LATIN, 0},
+		{KBD_FYRO_MACEDONIAN, 0},
+		{KBD_GEORGIAN, 0},
+		{KBD_FAEROESE, 0},
+		{KBD_DEVANAGARI_INSCRIPT, 0},
+		{KBD_MALTESE_47_KEY, 0},
+		{KBD_NORWEGIAN_WITH_SAMI, 0},
+		{KBD_KAZAKH, 0},
+		{KBD_KYRGYZ_CYRILLIC, 0},
+		{KBD_TATAR, 0},
+		{KBD_BENGALI, 0},
+		{KBD_PUNJABI, 0},
+		{KBD_GUJARATI, 0},
+		{KBD_TAMIL, 0},
+		{KBD_TELUGU, 0},
+		{KBD_KANNADA, 0},
+		{KBD_MALAYALAM, 0},
+		{KBD_MARATHI, 0},
+		{KBD_MONGOLIAN_CYRILLIC, 0},
+		{KBD_UNITED_KINGDOM_EXTENDED, 0},
+		{KBD_SYRIAC, 0},
+		{KBD_NEPALI, 0},
+		{KBD_PASHTO, 0},
+		{KBD_DIVEHI_PHONETIC, 0},
+		{KBD_LUXEMBOURGISH, 0},
+		{KBD_MAORI, 0},
+		{KBD_CHINESE_SIMPLIFIED_US, 0},
+		{KBD_SWISS_GERMAN, 0},
+		{KBD_UNITED_KINGDOM, 0},
+		{KBD_LATIN_AMERICAN, 0},
+		{KBD_BELGIAN_FRENCH, 0},
+		{KBD_BELGIAN_PERIOD, 0},
+		{KBD_PORTUGUESE, 0},
+		{KBD_SERBIAN_LATIN, 0},
+		{KBD_AZERI_CYRILLIC, 0},
+		{KBD_SWEDISH_WITH_SAMI, 0},
+		{KBD_UZBEK_CYRILLIC, 0},
+		{KBD_INUKTITUT_LATIN, 0},
+		{KBD_CANADIAN_FRENCH_LEGACY, "fr-legacy"},
+		{KBD_SERBIAN_CYRILLIC, 0},
+		{KBD_CANADIAN_FRENCH, 0},
+		{KBD_SWISS_FRENCH, "ch"},
+		{KBD_BOSNIAN, "unicode"},
+		{KBD_IRISH, 0},
+		{KBD_BOSNIAN_CYRILLIC, 0},
+
+		{0x00000000, 0},
+};
+
+//
+// these part was adapted from QtWayland, the original code can be retrieved
+// from the git repository https://qt.gitorious.org/qt/qtwayland, files are:
+//	* src/plugins/platforms/wayland_common/qwaylandinputdevice.cpp
+//	* src/plugins/platforms/wayland_common/qwaylandkey.cpp
+//
 static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
 {
     Qt::KeyboardModifiers ret = Qt::NoModifier;
@@ -199,7 +210,6 @@ static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
 
     return ret;
 }
-#endif
 
 static const uint32_t KeyTbl[] = {
     XK_Escape,                  Qt::Key_Escape,
@@ -276,85 +286,159 @@ static const uint32_t KeyTbl[] = {
     0,                          0
 };
 
-static uint32_t translateKey(uint32_t sym, char *string, size_t size)
+static int keysymToQtKey(xkb_keysym_t key)
 {
-    Q_UNUSED(size);
-    string[0] = '\0';
+    int code = 0;
+    int i = 0;
+    while (KeyTbl[i]) {
+        if (key == KeyTbl[i]) {
+            code = (int)KeyTbl[i+1];
+            break;
+        }
+        i += 2;
+    }
 
-    if (sym >= XK_F1 && sym <= XK_F35)
-        return Qt::Key_F1 + (int(sym) - XK_F1);
-
-    for (int i = 0; KeyTbl[i]; i += 2)
-        if (sym == KeyTbl[i])
-            return KeyTbl[i + 1];
-
-    string[0] = sym;
-    string[1] = '\0';
-    return toupper(sym);
+    return code;
 }
 
-static uint32_t keytime = 0;
+static int keysymToQtKey(xkb_keysym_t keysym, Qt::KeyboardModifiers &modifiers, const QString &text)
+{
+    int code = 0;
+
+    if (keysym >= XKB_KEY_F1 && keysym <= XKB_KEY_F35) {
+        code =  Qt::Key_F1 + (int(keysym) - XKB_KEY_F1);
+    } else if (keysym >= XKB_KEY_KP_Space && keysym <= XKB_KEY_KP_9) {
+        if (keysym >= XKB_KEY_KP_0) {
+            // numeric keypad keys
+            code = Qt::Key_0 + ((int)keysym - XKB_KEY_KP_0);
+        } else {
+            code = keysymToQtKey(keysym);
+        }
+        modifiers |= Qt::KeypadModifier;
+    } else if (text.length() == 1 && text.unicode()->unicode() > 0x1f
+        && text.unicode()->unicode() != 0x7f
+        && !(keysym >= XKB_KEY_dead_grave && keysym <= XKB_KEY_dead_currency)) {
+        code = text.unicode()->toUpper().unicode();
+    } else {
+        // any other keys
+        code = keysymToQtKey(keysym);
+    }
+
+    return code;
+}
+
+#endif
+
+
+
+
+QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
+		mFlags(0),
+		mPlatform(platform),
+		mClient(client),
+		mBogusCheckFileDescriptor(0),
+		mLastButtons(Qt::NoButton),
+		mKeyTime(0)
+#ifndef NO_XKB_SUPPORT
+		, mXkbContext(0)
+		, mXkbKeymap(0)
+		, mXkbState(0)
+		, mCapsLockModIndex(0)
+		, mNumLockModIndex(0)
+		, mScrollLockModIndex(0)
+#endif
+{
+}
+
+QFreeRdpPeer::~QFreeRdpPeer() {
+	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
+
+	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
+	for(int i = 0; i < 32; i++) {
+		QSocketNotifier *notifier = peerCtx->events[i];
+		if(notifier) {
+			notifier->setEnabled(false);
+			disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+			dispatcher->unregisterSocketNotifier(notifier);
+			delete notifier;
+		}
+	}
+
+	mClient->Close(mClient);
+
+	freerdp_peer_context_free(mClient);
+	freerdp_peer_free(mClient);
+	mPlatform->unregisterPeer(this);
+}
+
+void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
+	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
+	QFreeRdpPeer *peer = peerContext->rdpPeer;
+
+	Qt::MouseButtons buttons;
+	if (flags & PTR_FLAGS_BUTTON1)
+		buttons |= Qt::LeftButton;
+	if (flags & PTR_FLAGS_BUTTON2)
+		buttons |= Qt::RightButton;
+	if (flags & PTR_FLAGS_BUTTON3)
+		buttons |= Qt::MiddleButton;
+
+	if(flags & PTR_FLAGS_DOWN)
+		peer->mLastButtons |= buttons;
+	else
+		peer->mLastButtons &= (~buttons);
+
+	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
+	QWindow *window = windowManager->getWindowAt(QPoint(x, y));
+	if(window) {
+		//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
+		Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+		QPoint wTopLeft = window->geometry().topLeft();
+	    QWindowSystemInterface::handleMouseEvent(window,
+	    		QPoint(x - wTopLeft.x(), y - wTopLeft.y()),
+	    		QPoint(x, y),
+	    		peer->mLastButtons, modifiers
+	    );
+
+	    /*if(mLastButtons)
+	    	windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());*/
+	}
+}
+
+void QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
+	//RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
+}
+
+
+void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
+{
+	qDebug("QFreeRdpPeer::%s()", __func__);
+	freerdp_peer* client = input->context->peer;
+	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
+	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
+
+	/* sends a full refresh */
+	// TODO: drop the full refresh ?
+	QRect refreshRect(0, 0, client->settings->DesktopWidth, client->settings->DesktopHeight);
+
+	rdpPeer->repaint(QRegion(refreshRect));
+	rdpPeer->updateModifiersState(flags & KBD_SYNC_CAPS_LOCK, flags & KBD_SYNC_NUM_LOCK,
+			flags & KBD_SYNC_SCROLL_LOCK,
+			flags & KBD_SYNC_KANA_LOCK);
+}
+
+
 void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
 	rdpSettings *settings = rdpPeer->mClient->settings;
 
-#ifndef NO_XKB_SUPPORT
-	if(!rdpPeer->mXkbKeymap) {
-		qWarning("%s: no keyboard support, event dropped", __func__);
-		return;
-	}
-#endif
-
-	if( !(flags & (KBD_FLAGS_DOWN|KBD_FLAGS_RELEASE)) ) {
-		qWarning("%s: notified for nothing, flags=%x", __func__, flags);
-		return;
-	}
-
-	uint32_t full_code = code;
 	if(flags & KBD_FLAGS_EXTENDED)
-		full_code |= KBD_FLAGS_EXTENDED;
+		code |= KBD_FLAGS_EXTENDED;
 
-	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(full_code, settings->KeyboardSubType);
-	if(vk_code > 0xff) {
-		qWarning("invalid vk_code %x", vk_code);
-		return;
-	}
-	uint32_t scan_code = vk_to_keycode[vk_code];
-	bool isDown = (flags & KBD_FLAGS_DOWN);
-
-	QFreeRdpWindow *focusWindow = rdpPeer->mPlatform->mWindowManager->getActiveWindow();
-	if(!focusWindow) {
-		qWarning("%s: no windows has the focus", __func__);
-		return;
-	}
-
-#ifndef NO_XKB_SUPPORT
-    const xkb_keysym_t *syms = 0;
-    uint32_t numSyms = xkb_key_get_syms(rdpPeer->mXkbState, scan_code, &syms);
-    xkb_state_update_key(rdpPeer->mXkbState, scan_code, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
-
-	qWarning("%s: numSyms:%d code=0x%x vkCode=0x%x scanCode=0x%x", __func__, numSyms,
-			full_code, vk_code, scan_code);
-    if (numSyms == 1) {
-        xkb_keysym_t xsym = syms[0];
-        Qt::KeyboardModifiers modifiers = translateModifiers(rdpPeer->mXkbState);
-        QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
-
-        char s[2];
-        uint32_t qtsym = translateKey(xsym, s, sizeof s);
-
-        qWarning("%s: xsym=0x%x qtsym=0x%x modifiers=0x%x", __func__, xsym, qtsym, (int)modifiers);
-		QWindowSystemInterface::handleExtendedKeyEvent(focusWindow->window(),
-													   ++keytime, type, qtsym,
-													   modifiers,
-													   0, 0, 0,
-													   QString::fromLatin1(s));
-    } else {
-    	qDebug("no sending anything");
-    }
-#endif
+	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(code, settings->KeyboardSubType);
+	rdpPeer->handleVirtualKeycode(flags, vk_code);
 }
 
 void QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 flags, UINT16 code)
@@ -378,21 +462,6 @@ BOOL QFreeRdpPeer::xf_peer_capabilities(freerdp_peer* /*client*/) {
 	return TRUE;
 }
 
-struct rdp_to_xkb_keyboard_layout {
-	UINT32 rdpLayoutCode;
-	const char *xkbLayout;
-};
-
-/* picked from http://technet.microsoft.com/en-us/library/cc766503(WS.10).aspx */
-static struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
-	{0x00000406, "dk"},
-	{0x00000407, "de"},
-	{0x00000409, "us"},
-	{0x0000040c, "fr"},
-	{0x00000410, "it"},
-	{0x00000813, "be"},
-	{0x00000000, 0},
-};
 
 /* taken from 2.2.7.1.6 Input Capability Set (TS_INPUT_CAPABILITYSET) */
 static const char *rdp_keyboard_types[] = {
@@ -403,7 +472,7 @@ static const char *rdp_keyboard_types[] = {
 	"pc102",/* 4: IBM enhanced (101- or 102-key) keyboard */
 	"", /* 5: Nokia 1050 and similar keyboards */
 	"",	/* 6: Nokia 9140 and similar keyboards */
-	""	/* 7: Japanese keyboard */
+	"jp106"	/* 7: Japanese keyboard */
 };
 
 BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
@@ -425,7 +494,7 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	xkbRuleNames.rules = "evdev";
 	if(settings->KeyboardType <= 7)
 		xkbRuleNames.model = rdp_keyboard_types[settings->KeyboardType];
-	for(int i = 0; rdp_keyboards[i].xkbLayout; i++) {
+	for(int i = 0; rdp_keyboards[i].rdpLayoutCode; i++) {
 		if(rdp_keyboards[i].rdpLayoutCode == settings->KeyboardLayout) {
 			xkbRuleNames.layout = rdp_keyboards[i].xkbLayout;
 			break;
@@ -446,8 +515,13 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 
 	rdpPeer->mXkbKeymap = xkb_keymap_new_from_names(rdpPeer->mXkbContext, &xkbRuleNames,
 			(xkb_keymap_compile_flags)0);
-	if(rdpPeer->mXkbKeymap)
+	if(rdpPeer->mXkbKeymap) {
 		rdpPeer->mXkbState = xkb_state_new(rdpPeer->mXkbKeymap);
+
+		rdpPeer->mCapsLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, XKB_MOD_NAME_CAPS);
+		rdpPeer->mNumLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "Mod2");
+		rdpPeer->mScrollLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "ScrollLock");
+	}
 #endif
 
 	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
@@ -621,6 +695,82 @@ void QFreeRdpPeer::repaint_raw(const QRegion &region) {
 }
 
 
+void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock) {
+#ifndef NO_XKB_SUPPORT
+	Q_UNUSED(kanaLock);
+
+	uint32_t mods_depressed, mods_latched, mods_locked, group;
+	int numMask, capsMask, scrollMask;
+
+	mods_depressed = xkb_state_serialize_mods(mXkbState, xkb_state_component(XKB_STATE_DEPRESSED));
+	mods_latched = xkb_state_serialize_mods(mXkbState, xkb_state_component(XKB_STATE_LATCHED));
+	mods_locked = xkb_state_serialize_mods(mXkbState, xkb_state_component(XKB_STATE_LOCKED));
+	group = xkb_state_serialize_group(mXkbState, xkb_state_component(XKB_STATE_EFFECTIVE));
+
+	numMask = (1 << mNumLockModIndex);
+	capsMask = (1 << mCapsLockModIndex);
+	scrollMask = (1 << mScrollLockModIndex);
+
+	mods_locked = capsLock ? (mods_locked | capsMask) : (mods_locked & ~capsMask);
+	mods_locked = numLock ? (mods_locked | numMask) : (mods_locked & ~numLock);
+	mods_locked = scrollLock ? (mods_locked | scrollMask) : (mods_locked & ~scrollMask);
+
+	xkb_state_update_mask(mXkbState, mods_depressed, mods_latched, mods_locked, 0, 0, group);
+#else
+	Q_UNUSED(capsLock);
+	Q_UNUSED(numLock);
+	Q_UNUSED(scrollLock);
+	Q_UNUSED(kanaLock);
+#endif
+}
+
+
+void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
+	quint32 scancode;
+	if( !(flags & (KBD_FLAGS_DOWN|KBD_FLAGS_RELEASE)) ) {
+		qWarning("%s: notified for nothing, flags=%x", __func__, flags);
+		return;
+	}
+	if(flags & KBD_FLAGS_EXTENDED)
+		vk_code |= KBDEXT;
+
+	scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
+
+	bool isDown = (flags & KBD_FLAGS_DOWN);
+
+#ifndef NO_XKB_SUPPORT
+    const xkb_keysym_t *syms = 0;
+    uint32_t numSyms = xkb_key_get_syms(mXkbState, scancode, &syms);
+    xkb_state_update_key(mXkbState, scancode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+
+	//qWarning("%s: numSyms:%d code=0x%x vkCode=0x%x scanCode=0x%x", __func__, numSyms,
+	//		full_code, vk_code, scan_code);
+    if (numSyms == 1) {
+        xkb_keysym_t xsym = syms[0];
+        Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState);
+        QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
+
+        uint utf32 = xkb_keysym_to_utf32(xsym);
+        QString text = QString::fromUcs4(&utf32, 1);
+
+        uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
+
+        qWarning("%s: xsym=0x%x qtsym=0x%x modifiers=0x%x", __func__, xsym, qtsym, (int)modifiers);
+
+    	QFreeRdpWindow *focusWindow = mPlatform->mWindowManager->getActiveWindow();
+    	if(!focusWindow) {
+    		qWarning("%s: no windows has the focus", __func__);
+    		return;
+    	}
+
+		QWindowSystemInterface::handleExtendedKeyEvent(focusWindow->window(),
+				++mKeyTime, type, qtsym, modifiers, scancode, 0, 0,
+				text
+		);
+    }
+#endif
+
+}
 
 QSize QFreeRdpPeer::getGeometry() {
 	return QSize(mClient->settings->DesktopWidth, mClient->settings->DesktopHeight);
