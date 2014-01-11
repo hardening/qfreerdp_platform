@@ -34,6 +34,9 @@ class QPlatformTheme;
 class QFreeRdpScreen;
 class QFreeRdpPlatform;
 
+/**
+ *
+ */
 class QFreeRdpIntegration : public QPlatformIntegration
 {
 public:
@@ -45,10 +48,16 @@ public:
     virtual bool hasCapability(QPlatformIntegration::Capability cap) const;
     virtual QPlatformWindow *createPlatformWindow(QWindow *window) const;
     virtual QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const;
-    virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
     virtual QPlatformFontDatabase *fontDatabase() const;
     virtual QStringList themeNames() const;
     virtual QPlatformTheme *createPlatformTheme(const QString &name) const;
+
+#if QT_VERSION < 0x050200
+    virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+#else
+    virtual QAbstractEventDispatcher *createEventDispatcher() const;
+#endif
+
     /** @} */
 
 protected:

@@ -5,7 +5,7 @@ TARGET=qfreerdp
 
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += freerdp xkbcommon
+    PKGCONFIG += freerdp xkbcommon glib-2.0
     LIBS += -lwinpr-input
 }
 

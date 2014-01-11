@@ -70,9 +70,15 @@ QPlatformBackingStore *QFreeRdpIntegration::createPlatformBackingStore(QWindow *
     return new QFreeRdpBackingStore(window, mPlatform);
 }
 
+#if QT_VERSION < 0x050200
 QAbstractEventDispatcher *QFreeRdpIntegration::guiThreadEventDispatcher() const {
     return mEventDispatcher;
 }
+#else
+QAbstractEventDispatcher *QFreeRdpIntegration::createEventDispatcher() const {
+    return mEventDispatcher;
+}
+#endif
 
 QPlatformFontDatabase *QFreeRdpIntegration::fontDatabase() const {
     return mFontDb;
