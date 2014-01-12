@@ -390,19 +390,35 @@ void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 
 	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
 	QWindow *window = windowManager->getWindowAt(QPoint(x, y));
-	if(window) {
-		//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
-		Qt::KeyboardModifiers modifiers = Qt::NoModifier;
-		QPoint wTopLeft = window->geometry().topLeft();
-	    QWindowSystemInterface::handleMouseEvent(window,
-	    		QPoint(x - wTopLeft.x(), y - wTopLeft.y()),
-	    		QPoint(x, y),
-	    		peer->mLastButtons, modifiers
-	    );
+	if(!window)
+		return;
 
-	    /*if(mLastButtons)
-	    	windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());*/
+	int wheelDelta;
+	//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
+	Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+
+	QPoint wTopLeft = window->geometry().topLeft();
+	QPoint localCoord(x - wTopLeft.x(), y - wTopLeft.y());
+	QPoint pos(x, y);
+	QWindowSystemInterface::handleMouseEvent(window,
+			localCoord,
+			pos,
+			peer->mLastButtons, modifiers
+	);
+
+	if (flags & PTR_FLAGS_WHEEL) {
+		wheelDelta = (10 * (flags & 0xff)) / 120;
+		if (flags & PTR_FLAGS_WHEEL_NEGATIVE)
+			wheelDelta = -wheelDelta;
+
+		QPoint angleDelta;
+		angleDelta.setY(wheelDelta);
+		QWindowSystemInterface::handleWheelEvent(window, localCoord, pos,
+				QPoint(), angleDelta, modifiers);
 	}
+
+	/*if(mLastButtons)
+		windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());*/
 }
 
 void QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
