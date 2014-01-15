@@ -400,13 +400,10 @@ void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 	QPoint wTopLeft = window->geometry().topLeft();
 	QPoint localCoord(x - wTopLeft.x(), y - wTopLeft.y());
 	QPoint pos(x, y);
-	QWindowSystemInterface::handleMouseEvent(window,
-			localCoord,
-			pos,
-			peer->mLastButtons, modifiers
-	);
 
 	if (flags & PTR_FLAGS_WHEEL) {
+		pos = peer->mLastMousePos;
+		localCoord = pos - wTopLeft;
 		wheelDelta = (10 * (flags & 0xff)) / 120;
 		if (flags & PTR_FLAGS_WHEEL_NEGATIVE)
 			wheelDelta = -wheelDelta;
@@ -415,6 +412,14 @@ void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 		angleDelta.setY(wheelDelta);
 		QWindowSystemInterface::handleWheelEvent(window, localCoord, pos,
 				QPoint(), angleDelta, modifiers);
+	} else {
+		QWindowSystemInterface::handleMouseEvent(window,
+				localCoord,
+				pos,
+				peer->mLastButtons, modifiers
+		);
+
+		peer->mLastMousePos = pos;
 	}
 
 	/*if(mLastButtons)

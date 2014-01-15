@@ -84,6 +84,7 @@ protected:
     freerdp_peer *mClient;
     int mBogusCheckFileDescriptor;
 
+    QPoint mLastMousePos;
     Qt::MouseButtons mLastButtons;
     quint32 mKeyTime;
 #ifndef NO_XKB_SUPPORT
