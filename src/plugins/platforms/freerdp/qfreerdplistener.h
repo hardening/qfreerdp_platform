@@ -49,7 +49,7 @@ protected slots:
 	void incomingNewPeer();
 
 protected:
-	static void rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client);
+	static BOOL rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client);
 
 	freerdp_listener *listener;
 	QSocketNotifier *mSocketNotifier;

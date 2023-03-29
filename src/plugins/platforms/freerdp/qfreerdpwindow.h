@@ -56,6 +56,8 @@ public:
 
     WId winId() const { return mWinId; }
 
+    void center();
+
 #if 0
     QMargins frameMargins() const;
 

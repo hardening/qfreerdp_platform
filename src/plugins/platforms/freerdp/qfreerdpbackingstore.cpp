@@ -49,15 +49,15 @@ void QFreeRdpBackingStore::flush(QWindow *window, const QRegion &region, const Q
     Q_UNUSED(window);
     Q_UNUSED(offset);
     //qDebug() << "QFreeRdpBackingStore::" << __func__ << "()";
-    foreach (const QRect &rect, (region & mDirtyRegion).rects())
+    for (const QRect &rect: region & mDirtyRegion) {
         flush(rect);
+    }
     mDirtyRegion -= region;
 }
 
 void QFreeRdpBackingStore::resize(const QSize &size, const QRegion &staticContents)
 {
     Q_UNUSED(staticContents);
-    qDebug("QFreeRdpBackingStore::%s(%dx%d)", __func__, size.width(), size.height());
 
     if (mImage.size() != size)
         mImage = QImage(size, QImage::Format_ARGB32_Premultiplied);

@@ -26,7 +26,7 @@
 #include <QSocketNotifier>
 #include <qpa/qplatformintegration.h>
 #include <qabstracteventdispatcher.h>
-#include <freerdp/freerdp.h>
+#include <freerdp/listener.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -37,6 +37,13 @@ class QFreeRdpScreen;
 class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
+
+enum DisplayMode {
+	UNKNOWN = 0,
+	LEGACY = 1,
+	AUTODETECT = 2,
+	OPTIMIZE = 3
+};
 
 /**
  *
@@ -53,8 +60,20 @@ public:
 	 */
 	QFreeRdpPlatform(const QStringList& paramList, QAbstractEventDispatcher *dispatcher);
 
+	virtual ~QFreeRdpPlatform();
+
 	/** @return */
 	QFreeRdpScreen *getScreen() { return mScreen; }
+
+	/**
+	 * @return listen address
+	 */
+	char* getListenAddress() const;
+
+	/**
+	 * @return listen port
+	 */
+	int getListenPort() const;
 
 	/** registers a RDP peer
 	 * @param peer
@@ -78,8 +97,9 @@ public:
 
 	QPlatformWindow *newWindow(QWindow *window);
 
-
 	void configureClient(rdpSettings *settings);
+
+	DisplayMode getDisplayMode();
 
 //public:
 protected:
@@ -87,7 +107,6 @@ protected:
     QFreeRdpPlatformConfig *config;
     QFreeRdpScreen *mScreen;
     QFreeRdpWindowManager *mWindowManager;
-
 	QFreeRdpListener *mListener;
 };
 QT_END_NAMESPACE

@@ -30,6 +30,8 @@
 #include <QPainter>
 #include <QDebug>
 
+#include <assert.h>
+
 QT_BEGIN_NAMESPACE
 
 QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform) :
@@ -73,12 +75,25 @@ void QFreeRdpWindowManager::lower(QFreeRdpWindow *window) {
 }
 
 void qimage_bitblt(const QRect &srcRect, const QImage *srcImg, const QPoint &dst, QImage *destImg) {
+
+	if (srcImg->sizeInBytes() == 0) {
+		// no bytes in source image
+		return;
+	}
+
 	int srcStride = srcImg->bytesPerLine();
 	QPoint topLeft = srcRect.topLeft();
 	const uchar *srcPtr = srcImg->bits() + (topLeft.y() * srcStride) + (topLeft.x() * 4);
 
+	// qDebug("%s: srcStride=%d srcRectLeft=%d srcRectTop=%d srcRectWidth=%d srcRectHeight=%d", __func__, srcStride,
+	// 		srcRect.left(), srcRect.top(), srcRect.width(), srcRect.height());
+	// qDebug("%s: src image bits = %d", __func__, srcImg->byteCount());
+
 	int dstStride = destImg->bytesPerLine();
 	uchar *destPtr = destImg->bits() + (dst.y() * dstStride) + (dst.x() * 4);
+
+	// qDebug("%s: dstStride=%d dstX=%d dstY=%d", __func__, dstStride, dst.x(), dst.y());
+	// qDebug("%s: dst image bits = %d", __func__, destImg->byteCount());
 
 	for(int h = 0; h < srcRect.height(); h++) {
 		memcpy(destPtr, srcPtr, srcRect.width() * 4);
@@ -111,26 +126,37 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 	QRect screenGeometry = screen->geometry();
 
 	QRegion toRepaint = region.intersected(screenGeometry); // clip to screen size
+	if(toRepaint.isEmpty()) {
+		return;
+	}
 
 	foreach(QFreeRdpWindow *window, mWindows) {
-		if(toRepaint.isEmpty()) break;
+
+//		qDebug("%s: window=%llu isVisible=%d", __func__, window->winId(), window->isVisible());
 
 		if(!window->isVisible())
 			continue;
 
 		const QRect &windowRect = window->geometry();
 
+//		qDebug("%s: window=%llu windowRectLeft=%d windowRectTop=%d windowRectWidth=%d windowRectHeight=%d", __func__, window->winId(),
+//				windowRect.left(), windowRect.top(), windowRect.width(), windowRect.height());
+
 		QRegion inter = toRepaint.intersected(windowRect);
-		foreach(QRect repaintRect, inter.rects()) {
+		for (const QRect& repaintRect : inter) {
 			QPoint topLeft = windowRect.topLeft();
 			QRect localCoord = repaintRect.translated(-topLeft);
+
+
+			assert(window->getContent() != NULL);
+			assert(dest != NULL);
 			qimage_bitblt(localCoord, window->getContent(), repaintRect.topLeft(), dest);
 		}
 
-		toRepaint -= windowRect;
+		toRepaint -= inter;
 	}
 
-	foreach(QRect repaintRect, toRepaint.rects()) {
+	for (const QRect& repaintRect: toRepaint) {
 		qimage_fillrect(repaintRect, dest, 0);
 	}
 
@@ -148,7 +174,7 @@ QWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 	return 0;
 }
 
-void QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons) {
+void QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, QEvent::Type eventtype) {
 	QWindow *window = getWindowAt(pos);
 	if(window != mEnteredWindow) {
 		if(mEnteredWindow)
@@ -162,7 +188,7 @@ void QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 		QPoint localCoord = pos - wTopLeft;
 		if(window != mEnteredWindow)
 			QWindowSystemInterface::handleEnterEvent(mEnteredWindow, localCoord, pos);
-	    QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, buttons, modifiers);
+	    QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, buttons, button, eventtype, modifiers);
 	}
 
 	if(window != mEnteredWindow)
