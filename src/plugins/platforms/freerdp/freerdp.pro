@@ -1,21 +1,61 @@
 PLUGIN_TYPE=platforms
+PLUGIN_CLASS_NAME = QFreeRdpIntegrationPlugin
 load(qt_plugin)
 
 TARGET=qfreerdp
 
-unix {
-    CONFIG += link_pkgconfig
-    PKGCONFIG += freerdp xkbcommon glib-2.0
-    LIBS += -lwinpr-input
+isEmpty(PREFIX) {
+    PREFIX = /usr
 }
 
-CONFIG += link_pkgconfig qpa/genericunixfontdatabase
+DESTDIR = $$PREFIX/lib/platforms
 
-QT += core-private gui-private platformsupport-private
+unix {
+    CONFIG += link_pkgconfig
+    PKGCONFIG += freerdp2 xkbcommon glib-2.0
+    LIBS += -lwinpr2 -lwinpr-tools2
+}
+
+*-g++* {
+    QMAKE_CXXFLAGS += -Wformat -Wformat-security -Werror=format-security
+    QMAKE_CXXFLAGS += -D_FORTIFY_SOURCE=2 -fPIC
+    QMAKE_CXXFLAGS += -fstack-protector-strong --param ssp-buffer-size=4
+    QMAKE_CXXFLAGS_RELEASE += -O2
+    QMAKE_CXXFLAGS_DEBUG += -O0 -g
+    QMAKE_LFLAGS_RELEASE += -pie -Wl,-z,relro -Wl,-z,now -Wl,-strip-all
+}
+
+*-clang* {
+	isEmpty(asan) {
+		asan = false
+	}
+
+	# enable ASAN
+	if($$asan) {
+		message( "Use Address Sanitizer" )
+    	QMAKE_CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer -O0 -g3
+		QMAKE_CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+		QMAKE_LFLAGS = -fsanitize=address
+    } else {
+    	QMAKE_CXXFLAGS += -O0 -g3
+    }
+}
+
+CONFIG += link_pkgconfig qpa/genericunixfontdatabase c++14
+
+QT += core-private gui-private
+
+equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {                                                                                                                                                                               
+	QT += platformsupport-private
+} else {
+	QT += fontdatabase_support_private eventdispatcher_support_private theme_support_private
+}
 
 OTHER_FILES = freerdp.json
 
+
 SOURCES += main.cpp 				\
+		qfreerdpcompositor.cpp      \
 		qfreerdpintegration.cpp		\
 		qfreerdpplatform.cpp 		\
 		qfreerdpscreen.cpp			\
@@ -27,6 +67,7 @@ SOURCES += main.cpp 				\
 
 
 HEADERS += qfreerdpintegration.h \
+	qfreerdpcompositor.h \
 	qfreerdpscreen.h \
 	qfreerdpcursor.h			\
 	qfreerdpbackingstore.h \
@@ -35,9 +76,3 @@ HEADERS += qfreerdpintegration.h \
 	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
 	qfreerdpcursor.h 
-	
-
-#DESTDIR = $$QT.gui.plugins/platforms
-#target.path += $$[QT_INSTALL_PLUGINS]/platforms           
-INSTALLS += target
-

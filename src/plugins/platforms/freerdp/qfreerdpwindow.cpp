@@ -41,11 +41,16 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
     mVisible(false)
 {
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
-	qDebug("QFreeRdpWindow ctor(%d, type=0x%x)", mWinId, window->type());
+	qDebug("QFreeRdpWindow ctor(%llu, type=0x%x)", mWinId, window->type());
+
+	// adapt window position
+	if (window->type() == Qt::Dialog) {
+		this->center();
+	}
 }
 
 QFreeRdpWindow::~QFreeRdpWindow() {
-	qDebug("QFreeRdpWindow::%s(%d)", __func__, mWinId);
+	qDebug("QFreeRdpWindow::%s(%llu)", __func__, mWinId);
 	mPlatform->mWindowManager->dropWindow(this);
 }
 
@@ -70,17 +75,17 @@ void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
 }
 
 void QFreeRdpWindow::raise() {
-    qDebug("QFreeRdpWindow::%s(%d)", __func__, mWinId);
+    qDebug("QFreeRdpWindow::%s(%llu)", __func__, mWinId);
 	mPlatform->mWindowManager->raise(this);
 }
 
 void QFreeRdpWindow::lower() {
-    qDebug("QFreeRdpWindow::%s(%d)", __func__, mWinId);
+    qDebug("QFreeRdpWindow::%s(%llu)", __func__, mWinId);
 	mPlatform->mWindowManager->lower(this);
 }
 
 void QFreeRdpWindow::setVisible(bool visible) {
-    qDebug("QFreeRdpWindow::%s(%d,visible=%d)", __func__, mWinId, visible);
+    qDebug("QFreeRdpWindow::%s(%llu,visible=%d)", __func__, mWinId, visible);
 	QPlatformWindow::setVisible(visible);
 
 	mVisible = visible;
@@ -88,7 +93,7 @@ void QFreeRdpWindow::setVisible(bool visible) {
 }
 
 void QFreeRdpWindow::setGeometry(const QRect &rect) {
-	qDebug("QFreeRdpWindow::%s(%d, %d,%d - %dx%d)", __func__, mWinId, rect.left(),
+	qDebug("QFreeRdpWindow::%s(%llu, %d,%d - %dx%d)", __func__, mWinId, rect.left(),
 			rect.top(), rect.width(), rect.height());
 	QRegion updateRegion(geometry());
 
@@ -105,6 +110,18 @@ const QImage *QFreeRdpWindow::getContent() {
 		return 0;
 	return (const QImage *)mBackingStore->paintDevice();
 }
+
+void QFreeRdpWindow::center() {
+
+	QRect screenGeometry = mScreen->geometry();
+	QRect windowGeometry = this->geometry();
+
+	int x = (screenGeometry.width() - windowGeometry.width()) / 2;
+	int y = (screenGeometry.height() - windowGeometry.height()) / 2;
+
+	this->setGeometry(QRect(x, y, windowGeometry.width(), windowGeometry.height()));
+}
+
 #if 0
 QMargins QFreeRdpWindow::frameMargins() const
 {

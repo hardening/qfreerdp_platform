@@ -24,12 +24,14 @@
 #define __QPLATFORMINTEGRATION_FREERDP_H__
 
 #include <qpa/qplatformintegration.h>
+#include <QtGui/qpa/qplatforminputcontextfactory_p.h>
 
 
 QT_BEGIN_NAMESPACE
 
 class QAbstractEventDispatcher;
 class QPlatformTheme;
+class QPlatformNativeInterface;
 
 class QFreeRdpScreen;
 class QFreeRdpPlatform;
@@ -51,19 +53,26 @@ public:
     virtual QPlatformFontDatabase *fontDatabase() const;
     virtual QStringList themeNames() const;
     virtual QPlatformTheme *createPlatformTheme(const QString &name) const;
+    virtual QPlatformNativeInterface *nativeInterface()const;
+
+    virtual QPlatformInputContext *inputContext() const;
+
+    virtual void initialize();
+
 
 #if QT_VERSION < 0x050200
     virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
 #else
     virtual QAbstractEventDispatcher *createEventDispatcher() const;
 #endif
-
     /** @} */
 
 protected:
     QPlatformFontDatabase *mFontDb;
     QAbstractEventDispatcher *mEventDispatcher;
     QFreeRdpPlatform *mPlatform;
+    QPlatformNativeInterface *mNativeInterface;
+    QScopedPointer<QPlatformInputContext> mInputContext;
 };
 
 QT_END_NAMESPACE

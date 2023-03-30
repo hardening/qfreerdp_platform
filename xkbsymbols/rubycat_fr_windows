@@ -1,0 +1,70 @@
+partial alphanumeric_keys
+xkb_symbols "windows" {
+
+    // Modifies the basic French layout to use MS windows
+    include "fr(latin9)"
+
+    key <TLDE>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [     twosuperior,     twosuperior, leftdoublequotemark, rightdoublequotemark ] };
+    key <AE01>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [       ampersand,               1,          dead_acute,       periodcentered ] };
+    key <AE02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          eacute,               2,          asciitilde,               Eacute ] };
+    key <AE03>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [        quotedbl,               3,          numbersign,              cedilla ] };
+    key <AE04>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [      apostrophe,               4,           braceleft,                acute ] };
+    key <AE05>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [       parenleft,               5,         bracketleft,            diaeresis ] };
+    key <AE06>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [           minus,               6,                 bar,            brokenbar ] };
+    key <AE07>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          egrave,               7,          dead_grave,               Egrave ] };
+    key <AE08>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [      underscore,               8,           backslash,               macron ] };
+    key <AE09>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [        ccedilla,               9,         asciicircum,             Ccedilla ] };
+    key <AE10>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          agrave,               0,                  at,               Agrave ] };
+    key <AE11>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [      parenright,          degree,        bracketright,           ydiaeresis ] };
+    key <AE12>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [           equal,            plus,          braceright,       dead_abovering ] };
+
+    key <AD01>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               a,               A,         acircumflex,           adiaeresis ] };
+    key <AD02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               z,               Z,               aring,                Aring ] };
+    key <AD03>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               e,               E,            EuroSign,                 cent ] };
+    key <AD04>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               r,               R,            ccedilla,             Ccedilla ] };
+    key <AD05>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               t,               T,               thorn,                THORN ] };
+    key <AD06>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               y,               Y,              yacute,               Yacute ] };
+    key <AD07>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               u,               U,         ucircumflex,           udiaeresis ] };
+    key <AD08>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               i,               I,         icircumflex,           idiaeresis ] };
+    key <AD09>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               o,               O,         ocircumflex,           odiaeresis ] };
+    key <AD10>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               p,               P,           paragraph,                grave ] };
+    key <AD11>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [ dead_circumflex,  dead_diaeresis,          dead_tilde,           apostrophe ] };
+    key <AD12>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          dollar,        sterling,         ecircumflex,           ediaeresis ] };
+
+    key <AC01>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               q,               Q,         Acircumflex,           Adiaeresis ] };
+    key <AC02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               s,               S,              oslash,             Ooblique ] };
+    key <AC03>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               d,               D,         Ecircumflex,           Ediaeresis ] };
+    key <AC04>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               f,               F,           plusminus,          ordfeminine ] };
+    key <AC05>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               g,               G,                  ae,                   AE ] };
+    key <AC06>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               h,               H,                 eth,                  ETH ] };
+    key <AC07>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               j,               J,         Ucircumflex,           Udiaeresis ] };
+    key <AC08>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               k,               K,         Icircumflex,           Idiaeresis ] };
+    key <AC09>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               l,               L,         Ocircumflex,           Odiaeresis ] };
+    key <AC10>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               m,               M,         onesuperior,            masculine ] };
+    key <AC11>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          ugrave,         percent,         twosuperior,               Ugrave ] };
+    key <BKSL>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [        asterisk,              mu,       threesuperior,                  yen ] };
+
+    key <LSGT>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [            less,         greater,                 bar                       ] };
+    key <AB01>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               w,               W,       guillemotleft                       ] };
+    key <AB02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               x,               X,      guillemotright                       ] };
+    key <AB03>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               c,               C,           copyright                       ] };
+    key <AB04>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               v,               V,          registered                       ] };
+    key <AB05>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               b,               B,              ssharp                       ] };
+    key <AB06>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [               n,               N,             notsign                       ] };
+    key <AB07>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [           comma,        question,        questiondown                       ] };
+    key <AB08>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [       semicolon,          period,            multiply                       ] };
+    key <AB09>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [           colon,           slash,            division                       ] };
+    key <AB10>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          exclam,         section,          exclamdown                       ] };
+
+    // French uses a comma as decimal separator, but keyboards are labeled with a period
+    // Will take effect when KP_Decimal is mapped to the locale decimal separator
+    key <KPDL>  { [       KP_Delete,      KP_Decimal,           KP_Delete,           KP_Decimal ] };
+
+    // AltGr mapping to Right Alt/Left Alt/Left Ctrl keys
+    // Left Alt/Ctrl are needed for RDWeb compatibility
+    include "level3(alt_switch)"
+    key <LCTL> {
+      type[Group1]="ONE_LEVEL",
+      symbols[Group1] = [ ISO_Level3_Shift ]
+    };
+};

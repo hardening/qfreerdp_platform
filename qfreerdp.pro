@@ -1,2 +1,2 @@
 TEMPLATE=subdirs
-SUBDIRS=src applications
+SUBDIRS=src

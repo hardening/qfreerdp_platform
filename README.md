@@ -7,35 +7,35 @@ the original code.
 
 ## Requirements
 
-* Qt5
-* FreeRDP 1.1 (for now it's master)
+* Qt5 development librairies (>= 5.12.8)
+* libfreerdp (>= 2.4.1)
+
+## Set up dev environment
+```
+$ export INSTALL_PATH=/your/preferred/install/path
+$ export PKG_CONFIG_PATH=${INSTALL_PATH}/usr/lib/pkgconfig:${INSTALL_PATH}/usr/lib/x86_64-linux-gnu/pkgconfig
+$ export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
+```
+
+## Install requirements (for Ubuntu 20.04)
+
+### system libraries
+    apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev libudev-dev libfontconfig1-dev libfreetype6-dev
 
 ## Installation
 
-You'll need Qt5 installation, you can find precompiled Ubuntu packages in the [Qt5-edgers PPA](https://launchpad.net/~canonical-qt5-edgers/+archive/qt5-proper).
+### Compilation
+    qmake PREFIX=${INSTALL_PATH}/usr && make -j4 all
 
-Requirements for FreeRDP can be found [here](https://github.com/FreeRDP/FreeRDP/wiki/Compilation)
-The following instructions can be used to build a FreeRDP in a custom location:
-```
-$ export INSTALL_PATH=$HOME/deploy 
-$ git clone https://github.com/FreeRDP/FreeRDP.git
-$ cd FreeRDP
-$ cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH -DCMAKE_BUILD_TYPE=Debug -DWITH_SSE2=ON .
-$ make install
-```
-
-Next to build the platform plugin with qt5-edgers packages (make usage of qtchooser):
-```
-$ export PKG_CONFIG_PATH=$INSTALL_PATH/lib/pkgconfig/:$INSTALL_PATH/share/pkgconfig/
-$ qtchooser --qt=qt5 --run-tools=qmake
-$ make
-```
-
+### Keyboard layouts
+    Install windows specific layouts
+    mkdir -p $HOME/.xkb/symbols/ && cp -rf xkbsymbols/* $HOME/.xkb/symbols/
+    
 ## Using
 
 To use the platform plugin you need to specify the path where QT can find plugins:
 ```
-$ export QT_PLUGIN_PATH=$(PWD)/plugins
+$ export QT_PLUGIN_PATH=${INSTALL_PATH}/usr/lib/
 ```
 
 Now launch any Qt5 program (you'll find many in the examples directory) with the

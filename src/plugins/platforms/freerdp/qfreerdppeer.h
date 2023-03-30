@@ -22,13 +22,17 @@
 #ifndef __QFREERDPPEER_H__
 #define __QFREERDPPEER_H__
 
+#include <memory>
+
 #include <freerdp/peer.h>
 #include <QImage>
+#include <QMap>
 
 #ifndef NO_XKB_SUPPORT
 #include <xkbcommon/xkbcommon.h>
 #endif
 
+#include "qfreerdpcompositor.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -45,14 +49,16 @@ public:
     ~QFreeRdpPeer();
 
     bool init();
-    void repaint(const QRegion &rect);
+    void repaintWithCompositor(const QRegion &rect);
 
     QSize getGeometry();
 
 protected:
+	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
+	void init_display(freerdp_peer* client);
 
 public slots:
 	void incomingBytes(int sock);
@@ -63,12 +69,13 @@ protected:
 	static BOOL xf_peer_capabilities(freerdp_peer* client);
 	static BOOL xf_peer_post_connect(freerdp_peer *client);
 	static BOOL xf_peer_activate(freerdp_peer *client);
-	static void xf_mouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
-	static void xf_extendedMouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
-	static void xf_input_synchronize_event(rdpInput *input, UINT32 flags);
-	static void xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
-	static void xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
-	static void xf_suppress_output(rdpContext* context, BYTE allow, RECTANGLE_16 *area);
+	static BOOL xf_mouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
+	static BOOL xf_extendedMouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
+	static BOOL xf_input_synchronize_event(rdpInput *input, UINT32 flags);
+	static BOOL xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
+	static BOOL xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
+	static BOOL xf_refresh_rect(rdpContext *context, BYTE count, const RECTANGLE_16* areas);
+	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	/** @} */
 
 
@@ -87,6 +94,11 @@ protected:
     QPoint mLastMousePos;
     Qt::MouseButtons mLastButtons;
     quint32 mKeyTime;
+
+    bool mSurfaceOutputModeEnabled;
+    bool mNsCodecSupported;
+    QFreeRdpCompositor mCompositor;
+
 #ifndef NO_XKB_SUPPORT
     struct xkb_context *mXkbContext;
     struct xkb_keymap *mXkbKeymap;
@@ -95,6 +107,19 @@ protected:
 	xkb_mod_index_t mCapsLockModIndex;
 	xkb_mod_index_t mNumLockModIndex;
 	xkb_mod_index_t mScrollLockModIndex;
+
+	QMap<QString, bool> mKbdStateModifiers;
+#endif
+
+private :
+	void paintBitmap(const QVector<QRect> &rects);
+	void paintSurface(const QVector<QRect> &rects);
+	BOOL detectDisplaySettings(freerdp_peer* client);
+	BOOL configureDisplayLegacyMode(rdpSettings *settings);
+	BOOL configureOptimizeMode(rdpSettings *settings);
+
+#ifndef NO_XKB_SUPPORT
+	xkb_keysym_t getXkbSymbol(const quint32 &scanCode, const bool &isDown);
 #endif
 };
 

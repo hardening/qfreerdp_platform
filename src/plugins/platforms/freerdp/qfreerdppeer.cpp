@@ -21,11 +21,13 @@
  */
 
 #include <winpr/stream.h>
-//#include <freerdp/version.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/codec/rfx.h>
 #include <freerdp/codec/nsc.h>
 #include <freerdp/codec/color.h>
+#include <freerdp/codec/bitmap.h>
+#include <freerdp/gdi/gdi.h>
+#include <freerdp/input.h>
 
 #include "qfreerdppeer.h"
 #include "qfreerdpwindow.h"
@@ -38,50 +40,66 @@
 #include <QDebug>
 #include <QMutexLocker>
 #include <QtGui/qpa/qwindowsysteminterface.h>
+#include <qpa/qplatforminputcontext.h>
+#include <QtGui/private/qguiapplication_p.h>
+#include <QtCore/qmath.h>
 #include <X11/keysym.h>
 #include <ctype.h>
 
 #include <freerdp/locale/keyboard.h>
 
+#define DEFAULT_KBD_LANG "us"
+#define RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT "rubycat_fr_windows"
+#define RUBYCAT_DEFAULT_WINDOWS_GB_LAYOUT "rubycat_gb_windows"
+#define RUBYCAT_DEFAULT_WINDOWS_LATAM_LAYOUT "rubycat_latam_windows"
+#define RUBYCAT_DEFAULT_WINDOWS_BE_LAYOUT "rubycat_be_windows"
 
 struct RdpPeerContext {
 	rdpContext _p;
 	QFreeRdpPeer *rdpPeer;
 
+	rdpSettings *settings;
+
 	/* file descriptors and associated events */
 	QSocketNotifier *events[32];
 
-	RFX_CONTEXT *rfx_context;
-	wStream *encode_stream;
-	RFX_RECT *rfx_rects;
-	NSC_CONTEXT *nsc_context;
+	NSC_CONTEXT* nsc_context;
+
 };
 
-static void
-rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context)
-{
-	context->rfx_context = rfx_context_new(TRUE);
-	context->rfx_context->mode = RLGR3;
-	context->rfx_context->width = client->settings->DesktopWidth;
-	context->rfx_context->height = client->settings->DesktopHeight;
-	rfx_context_set_pixel_format(context->rfx_context, RDP_PIXEL_FORMAT_B8G8R8A8);
 
+static BOOL rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context) {
+	// init settings
+	context->settings = client->settings;
+
+	// init codecs
+	client->context->codecs = codecs_new(client->context);
+	freerdp_client_codecs_prepare(client->context->codecs, FREERDP_CODEC_ALL,
+			client->settings->DesktopWidth, client->settings->DesktopHeight);
+
+	// Planar configuration
+	client->context->codecs->planar->AllowRunLengthEncoding = TRUE; // enable RLE compression
+
+	// init NSC encoder
 	context->nsc_context = nsc_context_new();
-	nsc_context_set_pixel_format(context->nsc_context, RDP_PIXEL_FORMAT_B8G8R8A8);
+	nsc_context_reset(context->nsc_context, client->settings->DesktopWidth, client->settings->DesktopHeight);
+	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_LOSS_LEVEL, client->settings->NSCodecColorLossLevel);
+	nsc_context_set_parameters(context->nsc_context, NSC_ALLOW_SUBSAMPLING, client->settings->NSCodecAllowSubsampling ? 1 : 0);
+	nsc_context_set_parameters(context->nsc_context, NSC_DYNAMIC_COLOR_FIDELITY, client->settings->NSCodecAllowDynamicColorFidelity ? 1 : 0);
+	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, PIXEL_FORMAT_BGRX32);
 
-	context->encode_stream = Stream_New(0, 0x10000);
+	return TRUE;
 }
 
-static void
-rdp_peer_context_free(freerdp_peer* /*client*/, RdpPeerContext* context)
-{
+static void rdp_peer_context_free(freerdp_peer* client, RdpPeerContext* context) {
 	if(!context)
 		return;
 
-	Stream_Free(context->encode_stream, TRUE);
 	nsc_context_free(context->nsc_context);
-	rfx_context_free(context->rfx_context);
-	free(context->rfx_rects);
+	context->nsc_context = NULL;
+
+	// free codecs
+	codecs_free(client->context->codecs);
 }
 
 #ifndef NO_XKB_SUPPORT
@@ -98,6 +116,7 @@ struct rdp_to_xkb_keyboard_layout {
  	 https://github.com/awakecoding/FreeRDP/blob/master/libfreerdp/locale/xkb_layout_ids.c#L811 */
 static
 struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
+
 		{KBD_ARABIC_101, "ara"},
 		{KBD_BULGARIAN, "bg"},
 		{KBD_CHINESE_TRADITIONAL_US, 0},
@@ -165,10 +184,10 @@ struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
 		{KBD_MAORI, 0},
 		{KBD_CHINESE_SIMPLIFIED_US, 0},
 		{KBD_SWISS_GERMAN, 0},
-		{KBD_UNITED_KINGDOM, 0},
-		{KBD_LATIN_AMERICAN, 0},
-		{KBD_BELGIAN_FRENCH, 0},
-		{KBD_BELGIAN_PERIOD, 0},
+		{KBD_UNITED_KINGDOM, "gb"},
+		{KBD_LATIN_AMERICAN, "latam"},
+		{KBD_BELGIAN_FRENCH, "be"},
+		{KBD_BELGIAN_PERIOD, "be"},
 		{KBD_PORTUGUESE, 0},
 		{KBD_SERBIAN_LATIN, 0},
 		{KBD_AZERI_CYRILLIC, 0},
@@ -183,8 +202,27 @@ struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
 		{KBD_IRISH, 0},
 		{KBD_BOSNIAN_CYRILLIC, 0},
 
-		{0x00000000, 0},
+		{0x0000000, DEFAULT_KBD_LANG} // default
 };
+
+static void sendKey(QWindow *tlw, ulong timestamp, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers, quint32 nativeScanCode, 
+			quint32 nativeVirtualKey, quint32 nativeModifiers, const QString& text = QString(), bool autorep = false, ushort count = 1) {
+	QPlatformInputContext *inputContext = QGuiApplicationPrivate::platformIntegration()->inputContext();
+	bool filtered = false;
+
+	if (inputContext) {
+		QKeyEvent event(type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers, text, autorep, count);
+		event.setTimestamp(timestamp);
+		filtered = inputContext->filterEvent(&event);
+	}
+	
+	if (!filtered) {
+		QWindowSystemInterface::handleExtendedKeyEvent(tlw, timestamp, type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers,
+					text, autorep, count);
+	}
+}
+
+static QStringList MODIFIERS = QStringList() << "Shift" << "Control" << "Alt" << "ISO_Level3" << "Super" << "Mod1" << "Mod4";
 
 //
 // these part was adapted from QtWayland, the original code can be retrieved
@@ -210,6 +248,20 @@ static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
 
     return ret;
 }
+
+static QString keysymToUnicode(xkb_keysym_t sym) {
+	QByteArray chars;
+	int bytes;
+	chars.resize(7);
+
+    bytes = xkb_keysym_to_utf8(sym, chars.data(), chars.size());
+    if (bytes == -1)
+        qWarning("QFreeRdp::keysymToUnicode - buffer too small");
+    chars.resize(bytes-1);
+
+    return QString::fromUtf8(chars);
+}
+
 
 static const uint32_t KeyTbl[] = {
     XK_Escape,                  Qt::Key_Escape,
@@ -283,6 +335,25 @@ static const uint32_t KeyTbl[] = {
     XK_Mode_switch,             Qt::Key_Mode_switch,
     XK_script_switch,           Qt::Key_Mode_switch,
 
+	XK_dead_grave,				Qt::Key_Dead_Grave,
+	XK_dead_acute,				Qt::Key_Dead_Acute,
+	XK_dead_circumflex,			Qt::Key_Dead_Circumflex,
+	XK_dead_tilde,				Qt::Key_Dead_Tilde,
+	XK_dead_macron,				Qt::Key_Dead_Macron,
+	XK_dead_breve,				Qt::Key_Dead_Breve,
+	XK_dead_abovedot, 			Qt::Key_Dead_Abovedot,
+	XK_dead_diaeresis,			Qt::Key_Dead_Diaeresis,
+	XK_dead_abovering,			Qt::Key_Dead_Abovering,
+	XK_dead_doubleacute,		Qt::Key_Dead_Doubleacute,
+	XK_dead_caron,				Qt::Key_Dead_Caron,
+	XK_dead_cedilla,			Qt::Key_Dead_Cedilla,
+	XK_dead_ogonek,				Qt::Key_Dead_Ogonek,
+	XK_dead_iota,				Qt::Key_Dead_Iota,
+	XK_dead_voiced_sound,		Qt::Key_Dead_Voiced_Sound,
+	XK_dead_semivoiced_sound,	Qt::Key_Dead_Semivoiced_Sound,
+	XK_dead_belowdot,			Qt::Key_Dead_Belowdot,
+	XK_dead_hook,				Qt::Key_Dead_Hook,
+	XK_dead_horn,				Qt::Key_Dead_Horn,
     0,                          0
 };
 
@@ -327,10 +398,26 @@ static int keysymToQtKey(xkb_keysym_t keysym, Qt::KeyboardModifiers &modifiers, 
     return code;
 }
 
+void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleNames) {
+	rdpSettings *settings = client->settings;
+
+	// check if keyboard must be emulated like MS Windows keyboard
+	if (settings->OsMajorType != OSMAJORTYPE_WINDOWS) {
+		return;
+	}
+	qDebug("Using windows layout: %s", xkbRuleNames->layout);
+	if (xkbRuleNames->layout == QString("fr")) {
+		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT;
+	} else if (xkbRuleNames->layout == QString("latam")) {
+		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_LATAM_LAYOUT;
+	} else if (xkbRuleNames->layout == QString("gb")) {
+		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_GB_LAYOUT;
+	} else if (xkbRuleNames->layout == QString("be")) {
+		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_BE_LAYOUT;
+	}
+}
+
 #endif
-
-
-
 
 QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mFlags(0),
@@ -338,7 +425,10 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mClient(client),
 		mBogusCheckFileDescriptor(0),
 		mLastButtons(Qt::NoButton),
-		mKeyTime(0)
+		mKeyTime(0),
+		mSurfaceOutputModeEnabled(false),
+		mNsCodecSupported(false),
+		mCompositor(platform->getScreen())
 #ifndef NO_XKB_SUPPORT
 		, mXkbContext(0)
 		, mXkbKeymap(0)
@@ -348,6 +438,10 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		, mScrollLockModIndex(0)
 #endif
 {
+	// init Kbd modifiers
+	foreach(QString modifier, MODIFIERS) {
+		mKbdStateModifiers.insert(modifier, false);
+	}
 }
 
 QFreeRdpPeer::~QFreeRdpPeer() {
@@ -371,27 +465,15 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	mPlatform->unregisterPeer(this);
 }
 
-void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
+BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
 	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *peer = peerContext->rdpPeer;
 
-	Qt::MouseButtons buttons;
-	if (flags & PTR_FLAGS_BUTTON1)
-		buttons |= Qt::LeftButton;
-	if (flags & PTR_FLAGS_BUTTON2)
-		buttons |= Qt::RightButton;
-	if (flags & PTR_FLAGS_BUTTON3)
-		buttons |= Qt::MiddleButton;
-
-	if(flags & PTR_FLAGS_DOWN)
-		peer->mLastButtons |= buttons;
-	else
-		peer->mLastButtons &= (~buttons);
-
+	
 	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
 	QWindow *window = windowManager->getWindowAt(QPoint(x, y));
 	if(!window)
-		return;
+		return TRUE;
 
 	int wheelDelta;
 	//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
@@ -404,7 +486,7 @@ void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 	if (flags & PTR_FLAGS_WHEEL) {
 		pos = peer->mLastMousePos;
 		localCoord = pos - wTopLeft;
-		wheelDelta = (10 * (flags & 0xff)) / 120;
+		wheelDelta = flags & 0xff;
 		if (flags & PTR_FLAGS_WHEEL_NEGATIVE)
 			wheelDelta = -wheelDelta;
 
@@ -413,25 +495,65 @@ void QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 		QWindowSystemInterface::handleWheelEvent(window, localCoord, pos,
 				QPoint(), angleDelta, modifiers);
 	} else {
-		QWindowSystemInterface::handleMouseEvent(window,
-				localCoord,
-				pos,
-				peer->mLastButtons, modifiers
-		);
-
-		peer->mLastMousePos = pos;
+		if (peer->mLastMousePos != pos) {
+			// first move the mouse
+			QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, peer->mLastButtons, Qt::MouseButton::NoButton,
+					QEvent::Type::MouseMove, modifiers);
+			peer->mLastMousePos = pos;
+		}
+		// then click each button if necessary
+		for (int i = 0; i < 3; i++) {
+			int button;
+			Qt::MouseButton qtButton;
+			switch (i) {
+				case 0:
+					button = PTR_FLAGS_BUTTON1;
+					qtButton = Qt::MouseButton::LeftButton;
+					break;
+				case 1:
+					button = PTR_FLAGS_BUTTON2;
+					qtButton = Qt::MouseButton::RightButton;
+					break;
+				case 2:
+					button = PTR_FLAGS_BUTTON3;
+					qtButton = Qt::MouseButton::MiddleButton;
+					break;
+				default: 
+					qFatal("unreachable: fourth button clicked");
+			}
+			if (flags & button) {
+				QEvent::Type eventtype;
+				if (flags & PTR_FLAGS_DOWN) {
+					peer->mLastButtons |= qtButton;
+					eventtype = QEvent::MouseButtonPress;
+				} else {
+					peer->mLastButtons &= ~qtButton;
+					eventtype = QEvent::MouseButtonRelease;
+				}
+				QWindowSystemInterface::handleMouseEvent(window,
+						localCoord,
+						pos,
+						peer->mLastButtons,
+						qtButton,
+						eventtype,
+						modifiers
+				);
+				
+			}
+		}		
 	}
 
-	/*if(mLastButtons)
-		windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());*/
+	if(peer->mLastButtons)
+		windowManager->setActiveWindow((QFreeRdpWindow *)window->handle());
+
+	return TRUE;
 }
 
-void QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
-	//RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
+BOOL QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
+	return TRUE;
 }
 
-
-void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
+BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 {
 	qDebug("QFreeRdpPeer::%s()", __func__);
 	freerdp_peer* client = input->context->peer;
@@ -446,10 +568,12 @@ void QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 	rdpPeer->updateModifiersState(flags & KBD_SYNC_CAPS_LOCK, flags & KBD_SYNC_NUM_LOCK,
 			flags & KBD_SYNC_SCROLL_LOCK,
 			flags & KBD_SYNC_KANA_LOCK);
+
+	return TRUE;
 }
 
 
-void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
+BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
@@ -460,16 +584,34 @@ void QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16
 
 	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(code, settings->KeyboardSubType);
 	rdpPeer->handleVirtualKeycode(flags, vk_code);
+	return TRUE;
 }
 
-void QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 flags, UINT16 code)
+BOOL QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*code*/)
 {
-	qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
+	//qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
+	return TRUE;
 }
 
+BOOL QFreeRdpPeer::xf_refresh_rect(rdpContext *context, BYTE count, const RECTANGLE_16* areas) {
+	qDebug("QFreeRdpPeer::%s()", __func__);
 
-void QFreeRdpPeer::xf_suppress_output(rdpContext *context, BYTE allow, RECTANGLE_16* /*area*/) {
-	qDebug("xf_suppress_output(allow=%d)", allow);
+	// get RDP peer
+	RdpPeerContext *peerCtx = (RdpPeerContext *)context;
+	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
+
+	// repaint rect areas
+	for(int i = 0; i < count; i++) {
+		RECTANGLE_16 rect = areas[i];
+		QRect refreshRect(rect.left, rect.top, rect.right, rect.bottom);
+		rdpPeer->repaint(QRegion(refreshRect));
+	}
+
+	return TRUE;
+}
+
+BOOL QFreeRdpPeer::xf_suppress_output(rdpContext *context, BYTE allow, const RECTANGLE_16* /*area*/) {
+	//qDebug("xf_suppress_output(allow=%d)", allow);
 
 	RdpPeerContext *peerContext = (RdpPeerContext *)context;
 	QFreeRdpPeer *rdpPeer = peerContext->rdpPeer;
@@ -477,6 +619,7 @@ void QFreeRdpPeer::xf_suppress_output(rdpContext *context, BYTE allow, RECTANGLE
 		rdpPeer->mFlags &= (~PEER_OUTPUT_DISABLED);
 	else
 		rdpPeer->mFlags |= PEER_OUTPUT_DISABLED;
+	return TRUE;
 }
 
 BOOL QFreeRdpPeer::xf_peer_capabilities(freerdp_peer* /*client*/) {
@@ -496,6 +639,73 @@ static const char *rdp_keyboard_types[] = {
 	"jp106"	/* 7: Japanese keyboard */
 };
 
+BOOL QFreeRdpPeer::configureDisplayLegacyMode(rdpSettings *settings) {
+	// Disable surface mode
+	this->mSurfaceOutputModeEnabled = FALSE;
+
+	// disable NS codec
+	this->mNsCodecSupported = FALSE;
+
+	if (settings->ColorDepth == 24) {
+		// don't support 24 bits if surface mode not enabled
+		return FALSE;
+	}
+	return TRUE;
+}
+
+BOOL QFreeRdpPeer::configureOptimizeMode(rdpSettings *settings) {
+	// display surface and eventually NS codec
+	if ((settings->SurfaceCommandsEnabled) && (settings->FastPathOutput)) {
+		this->mSurfaceOutputModeEnabled = settings->FrameMarkerCommandEnabled && settings->SurfaceFrameMarkerEnabled;
+	} else {
+		qWarning("QFreeRdpPeer::%s: peer does not support Surface commands", __func__);
+	}
+
+	if ((settings->ColorDepth == 24) && (!this->mSurfaceOutputModeEnabled)) {
+		// don't support 24 bits if surface mode not enabled
+		return FALSE;
+	}
+
+	// check codec configuration
+	if ((settings->NSCodec) && (this->mSurfaceOutputModeEnabled)) {
+		// 1- NS codec in compatibility list
+		// 2- Surface commands enabled
+		this->mNsCodecSupported = FALSE;
+	}
+	return TRUE;
+}
+
+BOOL QFreeRdpPeer::detectDisplaySettings(freerdp_peer* client) {
+	rdpSettings *settings = client->settings;
+
+	// check color depths
+	if (settings->ColorDepth == 8) {
+		// don't support bpp 8
+		return FALSE;
+	}
+
+	if (mPlatform->getDisplayMode() == DisplayMode::LEGACY) {
+		// display only bitmap updates
+		return configureDisplayLegacyMode(settings);
+
+	} else if (mPlatform->getDisplayMode() == DisplayMode::OPTIMIZE) {
+		// compute surface commands and NSC settings
+		return configureOptimizeMode(settings);
+
+	} else if (mPlatform->getDisplayMode() == DisplayMode::AUTODETECT) {
+
+		// // If RDP client is a windows client -> Optimize mode
+		// if (settings->OsMajorType == OSMAJORTYPE_WINDOWS) {
+		// 	return configureOptimizeMode(settings);
+		// }
+		
+		// else -> legacy mode
+		return configureDisplayLegacyMode(settings);
+	}
+
+	return FALSE;
+}
+
 BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 #ifndef NO_XKB_SUPPORT
 	struct xkb_rule_names xkbRuleNames;
@@ -505,10 +715,12 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
 	rdpSettings *settings = client->settings;
 
-	if(!settings->SurfaceCommandsEnabled) {
-		qWarning("QFreeRdpPeer::%s: peer does not support Surface commands", __func__);
+	if (!rdpPeer->detectDisplaySettings(client)) {
+		// can't detect display settings
+		qWarning("Can not detect correctly settings");
 		return FALSE;
 	}
+	
 
 #ifndef NO_XKB_SUPPORT
 	memset(&xkbRuleNames, 0, sizeof(xkbRuleNames));
@@ -523,6 +735,17 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	}
 
 	if(!xkbRuleNames.layout) {
+		qWarning("don't have a rule to match keyboard layout 0x%x, set keyboard to default layout %s",
+				settings->KeyboardLayout, DEFAULT_KBD_LANG);
+		xkbRuleNames.layout = DEFAULT_KBD_LANG;
+	} else {
+		qWarning("settings->KeyboardLayout %s",
+				xkbRuleNames.layout);
+	}
+
+	initCustomKeyboard(client, &xkbRuleNames);
+
+	if(!xkbRuleNames.layout) {
 		qWarning("don't have a rule to match keyboard layout 0x%x, keyboard will not work",
 				settings->KeyboardLayout);
 		return TRUE;
@@ -534,8 +757,8 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		return FALSE;
 	}
 
-	rdpPeer->mXkbKeymap = xkb_keymap_new_from_names(rdpPeer->mXkbContext, &xkbRuleNames,
-			(xkb_keymap_compile_flags)0);
+	rdpPeer->mXkbKeymap = xkb_map_new_from_names(rdpPeer->mXkbContext, &xkbRuleNames,
+			(xkb_map_compile_flags)0);
 	if(rdpPeer->mXkbKeymap) {
 		rdpPeer->mXkbState = xkb_state_new(rdpPeer->mXkbKeymap);
 
@@ -545,6 +768,19 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	}
 #endif
 
+	// display initialization
+	rdpPeer->init_display(client);
+
+	return TRUE;
+}
+
+void QFreeRdpPeer::init_display(freerdp_peer* client) {
+	// get context
+	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
+	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
+	rdpSettings* settings = client->context->settings;
+
+	// set screen geometry 
 	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
 	//TODO: see the user's monitor layout
 	QRect currentGeometry = screen->geometry();
@@ -553,53 +789,51 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		screen->setGeometry(peerGeometry);
 	rdpPeer->mFlags |= PEER_ACTIVATED;
 
+	mCompositor.reset(settings->DesktopWidth, settings->DesktopHeight);
+
+	// default : show mouse
+	POINTER_SYSTEM_UPDATE pointer_system;
+	pointer_system.type = SYSPTR_DEFAULT;
+	client->update->pointer->PointerSystem(client->context, &pointer_system);
+
 	// full refresh
 	const QImage *src = screen->getScreenBits();
-	if(src)
-		rdpPeer->repaint(QRegion(peerGeometry));
-
-	return TRUE;
+	if(src) {
+		rdpPeer->repaintWithCompositor(QRegion(peerGeometry));
+	}
 }
 
 BOOL QFreeRdpPeer::xf_peer_activate(freerdp_peer * /*client*/) {
-/*	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
-	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
-	rdpSettings *settings = client->settings;
-
-	QRect refreshRect(0, 0, settings->DesktopWidth, settings->DesktopHeight);
-	const QImage *src = rdpPeer->mPlatform->mScreen->getScreenBits();
-	if(src)
-		rdpPeer->repaint(QRegion(refreshRect), src);
-*/
 	return TRUE;
 }
 
 bool QFreeRdpPeer::init() {
-	int rcount = 0;
-	void *rfds[32];
-	int i, fd;
-	rdpSettings	*settings;
-	rdpInput *input;
-	RdpPeerContext *peerCtx;
-
 	mClient->ContextSize = sizeof(RdpPeerContext);
 	mClient->ContextNew = (psPeerContextNew)rdp_peer_context_new;
 	mClient->ContextFree = (psPeerContextFree)rdp_peer_context_free;
 	freerdp_peer_context_new(mClient);
 
-	peerCtx = (RdpPeerContext *)mClient->context;
+	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 	peerCtx->rdpPeer = this;
 
-	settings = mClient->settings;
+	rdpSettings	*settings;
+	settings = mClient->context->settings;
 	settings->NlaSecurity = FALSE;
+	settings->RemoteFxCodec = FALSE;
+	settings->NSCodec = TRUE; // support NS codec
+	settings->ColorDepth = 32;
 	mPlatform->configureClient(settings);
 
 	mClient->Capabilities = QFreeRdpPeer::xf_peer_capabilities;
 	mClient->PostConnect = QFreeRdpPeer::xf_peer_post_connect;
 	mClient->Activate = QFreeRdpPeer::xf_peer_activate;
-	mClient->update->SuppressOutput = xf_suppress_output;
 
-	input = mClient->input;
+	rdpUpdate *update = mClient->context->update;
+	update->RefreshRect = QFreeRdpPeer::xf_refresh_rect;
+	update->SuppressOutput = QFreeRdpPeer::xf_suppress_output;
+	update->autoCalculateBitmapData = FALSE;
+
+	rdpInput *input = mClient->context->input;
 	input->SynchronizeEvent = QFreeRdpPeer::xf_input_synchronize_event;
 	input->MouseEvent = QFreeRdpPeer::xf_mouseEvent;
 	input->ExtendedMouseEvent = QFreeRdpPeer::xf_extendedMouseEvent;
@@ -608,17 +842,18 @@ bool QFreeRdpPeer::init() {
 
 	mClient->Initialize(mClient);
 
+	int rcount = 0;
+	void *rfds[32];
 	if (!mClient->GetFileDescriptor(mClient, rfds, &rcount)) {
 		qDebug() << "unable to retrieve client fds\n";
 		return false;
 	}
 
-	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
+	int i, fd;
 	for(i = 0; i < rcount; i++) {
 		fd = (int)(long)(rfds[i]);
 
 		peerCtx->events[i] = new QSocketNotifier(fd, QSocketNotifier::Read);
-		dispatcher->registerSocketNotifier(peerCtx->events[i]);
 
 		connect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 	}
@@ -630,19 +865,21 @@ bool QFreeRdpPeer::init() {
 
 void QFreeRdpPeer::incomingBytes(int) {
 	//qDebug() << "incomingBytes()";
-	//RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 	if(mClient->CheckFileDescriptor(mClient))
 		return;
 
-	// when here the connexion may be broken
-	mBogusCheckFileDescriptor++;
+	qDebug() << "error checking file descriptor";
+	deleteLater();
+}
 
-	// the first call that fails is almost always a false positive
-	if(mBogusCheckFileDescriptor == 1)
+void QFreeRdpPeer::repaintWithCompositor(const QRegion &region) {
+	if(!mFlags.testFlag(PEER_ACTIVATED))
+		return;
+	if(mFlags.testFlag(PEER_OUTPUT_DISABLED))
 		return;
 
-	qDebug() << "error checking file descriptor";
-	delete this;
+	QRegion dirty = mCompositor.qtToRdpDirtyRegion(region);
+	repaint_raw(dirty);
 }
 
 void QFreeRdpPeer::repaint(const QRegion &region) {
@@ -654,14 +891,30 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 	repaint_raw(region);
 }
 
-void qimage_flipped_subrect(const QRect &rect, const QImage *img, BYTE *dest) {
+void qimage_subrect(const QRect &rect, const QImage *img, BYTE *dest, bool flip_vertical) {
+	// get stride (number of bytes per line) in source image
 	int stride = img->bytesPerLine();
-	QPoint bottomLeft = rect.bottomLeft();
-	int toCopy = rect.width() * 4;
-	const uchar *src = img->bits() + (bottomLeft.y() * stride) + (bottomLeft.x() * 4);
 
-	for(int h = 0; h < rect.height(); h++, src -= stride, dest += toCopy)
-		memcpy(dest, src, toCopy);
+	// get origin point
+	QPoint orig = flip_vertical ? rect.bottomLeft() : rect.topLeft();
+
+	// length to copy
+	int lengthtoCopy = rect.width() * 4;
+
+	// get src bytes
+	const uchar *src = img->bits() + (orig.y() * stride) + (orig.x() * 4);
+
+	if (flip_vertical) {
+		// flip bytes (vertical)
+		for(int h = 0; h < rect.height(); h++, src -= stride, dest += lengthtoCopy)
+			memcpy(dest, src, lengthtoCopy);
+	} else {
+		// normal copy
+		for(int h = 0; h < rect.height(); h++, src += stride, dest += lengthtoCopy)
+			memcpy(dest, src, lengthtoCopy);
+	}
+
+	
 }
 
 #if 0
@@ -674,51 +927,64 @@ void qt_fillcolor(BYTE *dest, int count, UINT32 color) {
 #endif
 
 void QFreeRdpPeer::repaint_raw(const QRegion &region) {
-	rdpUpdate *update = mClient->update;
-	SURFACE_BITS_COMMAND *cmd = &update->surface_bits_command;
-	SURFACE_FRAME_MARKER *marker = &update->surface_frame_marker;
 
-	cmd->bpp = 32;
-	cmd->codecID = 0;
-	marker->frameId++;
-	marker->frameAction = SURFACECMD_FRAMEACTION_BEGIN;
-	update->SurfaceFrameMarker(mClient->context, marker);
+	QVector<QRect> rects;
+	for (const QRect& boundingRect: region) {
+		
+		// divide boundingRect in several rects
+		int subRectWidth = 64;
+		int subRectHeight = 64;
 
-	const QImage *src = mPlatform->getScreen()->getScreenBits();
-	foreach(QRect rect, region.rects()) {
-		cmd->width = rect.width();
-		cmd->destLeft = rect.left();
-		cmd->destRight = rect.right();
+		int boundingRectX1 = boundingRect.left();
+		int boundingRectY1 = boundingRect.top();
+		int boundingRectX2 = boundingRect.right();
+		int boundingRectY2 = boundingRect.bottom();
+//		qDebug() << "boundingRectX1 " << boundingRectX1 << " boundingRectY1 " << boundingRectY1
+//								<< " boundingRectX2 " << boundingRectX2 << " boundingRectY2 " << boundingRectY2;
 
-		// we split the surface to fit in the negociated packet size
-		// 16 is an approximation of bytes required for the surface command
-		int heightIncrement = mClient->settings->MultifragMaxRequestSize / (16 + cmd->width * 4);
-		int remainingHeight = rect.height();
-		int top = rect.top();
-		while(remainingHeight) {
-			cmd->height = (remainingHeight > heightIncrement) ? heightIncrement : remainingHeight;
-			cmd->destTop = top;
-			cmd->destBottom = top + cmd->height;
+		int y = boundingRectY1;
+		// height
+		while ( y <= boundingRectY2 ) {
+			// check height
+			int height = (y + subRectHeight - 1) > boundingRectY2 ? (boundingRectY2 - y + 1) : subRectHeight;
 
-			cmd->bitmapDataLength = cmd->width * cmd->height * 4;
-			cmd->bitmapData = (BYTE *)realloc(cmd->bitmapData, cmd->bitmapDataLength);
+			// width
+			int x = boundingRectX1;
+			while ( x <= boundingRectX2 ){
 
-			QRect subRect(QPoint(cmd->destLeft, cmd->destTop), QSize(cmd->width, cmd->height));
-			qimage_flipped_subrect(subRect, src, cmd->bitmapData);
-			update->SurfaceBits(mClient->context, cmd);
+				// check width
+				int width = (x + subRectWidth - 1) > boundingRectX2 ? (boundingRectX2 - x + 1) : subRectWidth;
 
-			remainingHeight -= cmd->height;
-			top += cmd->height;
+				// create subRect
+				QRect subRect = QRect(QPoint(x, y), QSize(width, height));
+//				qDebug() << "x1 " << subRect.left() << " y1 " << subRect.top()
+//						<< " x2 " << subRect.right() << " y2 " << subRect.bottom();
+
+				// add rects
+				rects.append(subRect);
+
+				// increment x
+				x += subRectWidth;
+			}
+
+			// increment y
+			y += subRectHeight;
 		}
 	}
-	marker->frameAction = SURFACECMD_FRAMEACTION_END;
-	update->SurfaceFrameMarker(mClient->context, marker);
+
+	// send rects
+	if (!rects.empty()) {
+		mSurfaceOutputModeEnabled ? paintSurface(rects) : paintBitmap(rects);
+	}
 }
 
 
 void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock) {
 #ifndef NO_XKB_SUPPORT
 	Q_UNUSED(kanaLock);
+
+	if (mXkbState == NULL)
+		return;
 
 	uint32_t mods_depressed, mods_latched, mods_locked, group;
 	int numMask, capsMask, scrollMask;
@@ -733,7 +999,7 @@ void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scroll
 	scrollMask = (1 << mScrollLockModIndex);
 
 	mods_locked = capsLock ? (mods_locked | capsMask) : (mods_locked & ~capsMask);
-	mods_locked = numLock ? (mods_locked | numMask) : (mods_locked & ~numLock);
+	mods_locked = numLock ? (mods_locked | numMask) : (mods_locked & !numLock);
 	mods_locked = scrollLock ? (mods_locked | scrollMask) : (mods_locked & ~scrollMask);
 
 	xkb_state_update_mask(mXkbState, mods_depressed, mods_latched, mods_locked, 0, 0, group);
@@ -747,53 +1013,310 @@ void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scroll
 
 
 void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
-	quint32 scancode;
+	// check keyboard flags
 	if( !(flags & (KBD_FLAGS_DOWN|KBD_FLAGS_RELEASE)) ) {
 		qWarning("%s: notified for nothing, flags=%x", __func__, flags);
 		return;
 	}
+
+	// check XkbState
+	if (mXkbState == NULL) {
+		qWarning("Keyboard is not initialized. Received : %u", vk_code);
+		return;
+	}
+
+	// check KBDEXT
 	if(flags & KBD_FLAGS_EXTENDED)
 		vk_code |= KBDEXT;
 
-	scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
+	// get scan code
+	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
 
+	// check if key is down or up
 	bool isDown = (flags & KBD_FLAGS_DOWN);
 
 #ifndef NO_XKB_SUPPORT
-    const xkb_keysym_t *syms = 0;
-    uint32_t numSyms = xkb_key_get_syms(mXkbState, scancode, &syms);
-    xkb_state_update_key(mXkbState, scancode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+	// get xkb symbol
+	xkb_keysym_t xsym = getXkbSymbol(scancode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+	if (xsym == XKB_KEY_NoSymbol) {
+		return;
+	}
 
-	//qWarning("%s: numSyms:%d code=0x%x vkCode=0x%x scanCode=0x%x", __func__, numSyms,
-	//		full_code, vk_code, scan_code);
-    if (numSyms == 1) {
-        xkb_keysym_t xsym = syms[0];
-        Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState);
-        QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
+	//qWarning("%s: vkCode=0x%x scanCode=0x%x isDown=%x", __func__, vk_code, scancode, isDown);
 
-        uint utf32 = xkb_keysym_to_utf32(xsym);
-        QString text = QString::fromUcs4(&utf32, 1);
+	// check if windows has focus
+	QFreeRdpWindow *focusWindow = mPlatform->mWindowManager->getActiveWindow();
+	if(!focusWindow) {
+		qWarning("%s: no windows has the focus", __func__);
+		return;
+	}
 
-        uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
+	// update Qt keyboard state
+	Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState);
+	QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
 
-        qWarning("%s: xsym=0x%x qtsym=0x%x modifiers=0x%x", __func__, xsym, qtsym, (int)modifiers);
+	QString text = keysymToUnicode(xsym);
+	int count = text.size();
+    text.truncate(count);
 
-    	QFreeRdpWindow *focusWindow = mPlatform->mWindowManager->getActiveWindow();
-    	if(!focusWindow) {
-    		qWarning("%s: no windows has the focus", __func__);
-    		return;
-    	}
+	uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
 
-		QWindowSystemInterface::handleExtendedKeyEvent(focusWindow->window(),
-				++mKeyTime, type, qtsym, modifiers, scancode, 0, 0,
-				text
-		);
-    }
+	//qWarning("%s: xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x", __func__, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
+
+	// send key
+	sendKey(focusWindow->window(), ++mKeyTime, type, qtsym, modifiers, scancode, xsym, 0,text);
+
 #endif
 
 }
 
 QSize QFreeRdpPeer::getGeometry() {
 	return QSize(mClient->settings->DesktopWidth, mClient->settings->DesktopHeight);
+}
+
+void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
+	rdpUpdate *update = mClient->update;
+
+	// use bitmap update
+	BITMAP_UPDATE *bitmapUpdate = (BITMAP_UPDATE*) malloc(sizeof(BITMAP_UPDATE));
+
+	// set bitmap rectangles number
+	bitmapUpdate->number = bitmapUpdate->count = rects.size();
+//	qDebug() << "number of rectangles : " << bitmapUpdate->number << endl;
+
+	bitmapUpdate->rectangles = (BITMAP_DATA*)malloc(bitmapUpdate->number * sizeof(BITMAP_DATA));
+
+	if (bitmapUpdate->rectangles == NULL)
+		return;
+
+	// get source image bits
+	const QImage *src = mPlatform->getScreen()->getScreenBits();
+
+	int i = 0;
+	auto settings = mClient->context->settings;
+
+	// fill bitmap data
+	foreach(QRect rect, rects) {
+		BITMAP_DATA bitmapData;
+
+		// coord
+		bitmapData.destLeft = rect.left();
+		bitmapData.destTop = rect.top();
+		bitmapData.destRight = rect.right();
+		bitmapData.destBottom = rect.bottom();
+		bitmapData.flags = 0x401; /* BITMAP_COMPRESSION | NO_BITMAP_COMPRESSION_HDR */
+
+		// width (inclusive bounds)
+		UINT32 width = (bitmapData.destRight - bitmapData.destLeft) + 1;
+		bitmapData.width = qCeil(qreal(width) / 16) * 16;
+
+		// height (inclusive bounds)
+		bitmapData.height = rect.bottom() - rect.top() + 1;
+
+		// bits per pixel
+		UINT32 origFormat = PIXEL_FORMAT_BGRX32;
+		switch (src->format()) {
+			case QImage::Format_RGB555 :
+				origFormat = PIXEL_FORMAT_RGB15;
+				break;
+			case QImage::Format_RGB16 :
+				origFormat = PIXEL_FORMAT_RGB16;
+				break;
+			case QImage::Format_RGB888 :
+				origFormat = PIXEL_FORMAT_RGB24;
+				break;
+			case QImage::Format_RGB32 :
+			default :
+				origFormat = PIXEL_FORMAT_BGRX32;
+				break;
+		}
+		bitmapData.bitsPerPixel = settings->ColorDepth;
+
+		// options
+		bitmapData.cbCompFirstRowSize = 0x0000;
+		bitmapData.cbCompMainBodySize = 0x0000;
+		bitmapData.cbScanWidth = 0x0000;
+		bitmapData.cbUncompressedSize = 0x0000;
+		bitmapData.bitmapDataStream = NULL;
+
+		// compute subRect
+		QRect subRect(QPoint(bitmapData.destLeft, bitmapData.destTop), QSize(bitmapData.width, bitmapData.height));
+		QImage image = src->copy(subRect);
+
+		auto codecs = mClient->context->codecs;
+		if (settings->ColorDepth == 32) {
+			// bpp 32 bits for client -> use planar codec
+			bitmapData.flags = 0x0401;
+			UINT32 dstSize;
+
+			bitmapData.bitmapDataStream = freerdp_bitmap_compress_planar(codecs->planar, image.bits(), PIXEL_FORMAT_BGRX32,
+					bitmapData.width, bitmapData.height, bitmapData.width * 4, NULL, &dstSize);
+
+			bitmapData.bitmapLength = dstSize;
+
+		} else {
+			// bpp is other than 32 bits
+			UINT32 dstBitsPerPixel = settings->ColorDepth;
+			UINT32 dstBytesPerPixel =  ((dstBitsPerPixel + 7) / 8);
+			UINT32 srcBytesPerPixel = (image.depth() + 7) / 8;
+			UINT32 DstSize = bitmapData.width * bitmapData.height * dstBytesPerPixel;
+			BYTE* buffer = (BYTE*) malloc(DstSize);
+
+			BOOL status = interleaved_compress(codecs->interleaved, buffer, &DstSize,
+											bitmapData.width, bitmapData.height,
+											image.bits(), origFormat, bitmapData.width * srcBytesPerPixel,
+											0, 0, &mClient->context->gdi->palette,
+											dstBitsPerPixel);
+
+			if (!status) {
+				qDebug() << "Can not interleaved compress";
+			}
+
+			bitmapData.bitmapDataStream = buffer;
+			bitmapData.bitmapLength = DstSize;
+			bitmapData.bitsPerPixel = dstBitsPerPixel;
+			bitmapData.cbScanWidth = bitmapData.width * dstBytesPerPixel;
+			bitmapData.cbUncompressedSize = bitmapData.width * bitmapData.height * dstBytesPerPixel;
+			bitmapData.cbCompMainBodySize = bitmapData.bitmapLength;
+			bitmapData.compressed = true;
+		}
+
+
+		// add bitmap data to bitmap update
+		bitmapUpdate->rectangles[i] = bitmapData;
+		i++;
+
+		// debug
+//		qDebug() << "BITMAP [" << bitmapData.destLeft << "," << bitmapData.destTop
+//				<< "," << bitmapData.destRight << "," << bitmapData.destBottom << "]"
+//				<< "[w " << bitmapData.width << ",h " << bitmapData.height << "]"
+//				<< "[bpp " << bitmapData.bitsPerPixel << ",f " << bitmapData.flags
+//				<< ",bmpLen " << bitmapData.bitmapLength << "]"
+//				<< "[cbCompFirstRowSize " << bitmapData.cbCompFirstRowSize
+//				<< ", cbCompMainBodySize " << bitmapData.cbCompMainBodySize
+//				<< ",cbScanWidth " << bitmapData.cbScanWidth
+//				<< ",cbUncompressedSize " << bitmapData.cbUncompressedSize
+//				<< ",compressed " << bitmapData.compressed << "]";
+	}
+
+	// send bitmap update
+	update->BitmapUpdate(mClient->context, bitmapUpdate);
+
+	// free bitmap
+	for (UINT32 i = 0; i < bitmapUpdate->number; ++i){
+		free(bitmapUpdate->rectangles[i].bitmapDataStream);
+	}
+
+	free(bitmapUpdate->rectangles);
+	free(bitmapUpdate);
+}
+
+void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
+	rdpUpdate *update = mClient->update;
+	SURFACE_BITS_COMMAND cmd;
+	SURFACE_FRAME_MARKER marker;
+	marker.frameId = 0;
+	marker.frameId++;
+	marker.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
+	update->SurfaceFrameMarker(mClient->context, &marker);
+
+	const QImage *src = mPlatform->getScreen()->getScreenBits();
+	foreach(QRect rect, rects) {
+		cmd.bmp.width = rect.width();
+		cmd.destLeft = rect.left();
+		cmd.destRight = rect.right() + 1;
+
+		// we split the surface to fit in the negotiated packet size
+		// 16 is an approximation of bytes required for the surface command
+		int heightIncrement = mClient->settings->MultifragMaxRequestSize / (16 + cmd.bmp.width * 4);
+		int remainingHeight = rect.height();
+		int top = rect.top();
+		while(remainingHeight) {
+			cmd.bmp.height = (remainingHeight > heightIncrement) ? heightIncrement : remainingHeight;
+			cmd.destTop = top;
+			cmd.destBottom = top + cmd.bmp.height;
+
+			QRect subRect(QPoint(cmd.destLeft, cmd.destTop), QSize(cmd.bmp.width, cmd.bmp.height));
+
+			cmd.bmp.bitmapDataLength = cmd.bmp.width * cmd.bmp.height * 4;
+			cmd.bmp.bitmapData = (BYTE *)malloc(cmd.bmp.bitmapDataLength * sizeof(BYTE));
+
+			if (mNsCodecSupported) {
+				// set codec params
+				cmd.bmp.bpp = 32;
+				cmd.bmp.codecID = mClient->settings->NSCodecId;
+
+				// get bytes in cmd.bitmapData (no vertical flip)
+				qimage_subrect(subRect, src, cmd.bmp.bitmapData, false);
+
+				// create stream of data
+				wStream* s = Stream_New(NULL, cmd.bmp.bitmapDataLength);
+				Stream_Clear(s);
+				Stream_SetPosition(s, 0);
+
+				// compute data with NSC codec
+				RdpPeerContext *ctx = (RdpPeerContext *)mClient->context;
+
+				nsc_compose_message(ctx->nsc_context, s,
+		                    cmd.bmp.bitmapData, subRect.width(), subRect.height(), subRect.width() * 4);
+
+				cmd.bmp.bitmapDataLength = Stream_GetPosition(s);
+				cmd.bmp.bitmapData = Stream_Buffer(s);
+			} else {
+				// no codec used
+				cmd.bmp.bpp = 32;
+				cmd.bmp.codecID = 0;
+
+				// get bytes in cmd.bitmapData (vertical flip)
+				qimage_subrect(subRect, src, cmd.bmp.bitmapData, true);
+			}
+			
+			update->SurfaceBits(mClient->context, &cmd);
+
+			free(cmd.bmp.bitmapData);
+
+			remainingHeight -= cmd.bmp.height;
+			top += cmd.bmp.height;
+		}
+	}
+	marker.frameAction = SURFACECMD_FRAMEACTION_END;
+	update->SurfaceFrameMarker(mClient->context, &marker);
+}
+
+xkb_keysym_t QFreeRdpPeer::getXkbSymbol(const quint32 &scanCode, const bool &isDown) {
+
+	// get key symbol
+	xkb_keysym_t sym = xkb_state_key_get_one_sym(mXkbState, scanCode);
+
+	// check key symbol name
+	const uint32_t sizeSymbolName = 64;
+	char buffer[sizeSymbolName];
+	int xkbStatus = xkb_keysym_get_name(sym, buffer, sizeSymbolName);
+	if (xkbStatus == -1) {
+		return sym;
+	}
+
+	// check if symbol is a known modifier
+	foreach(QString modifierName, mKbdStateModifiers.keys()) {
+		if (!QString(buffer).startsWith(modifierName)) {
+			// not this modifier
+			continue;
+		}
+
+		if (isDown && mKbdStateModifiers[modifierName]) {
+			// key is pressed and key was already enabled -> return sym
+			return sym;
+		}
+
+		// update state
+		mKbdStateModifiers[modifierName] = isDown;
+		break;
+	}
+
+	// update xkb state
+	xkb_state_update_key(mXkbState, scanCode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+
+	// return symbol
+	return sym;
 }
 
