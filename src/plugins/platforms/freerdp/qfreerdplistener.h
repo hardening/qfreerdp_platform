@@ -47,6 +47,7 @@ public:
 
 protected slots:
 	void incomingNewPeer();
+	void startListener(int fd);
 
 protected:
 	static BOOL rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client);

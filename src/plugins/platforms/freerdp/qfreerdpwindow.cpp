@@ -106,8 +106,10 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 }
 
 const QImage *QFreeRdpWindow::getContent() {
-	if(!mBackingStore)
+	if(!mBackingStore) {
+                qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
 		return 0;
+        }
 	return (const QImage *)mBackingStore->paintDevice();
 }
 

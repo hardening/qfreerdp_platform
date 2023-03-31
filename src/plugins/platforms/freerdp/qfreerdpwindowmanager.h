@@ -59,9 +59,11 @@ public:
 	QFreeRdpWindow *getActiveWindow() const { return mActiveWindow; }
 
 	void handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, QEvent::Type eventtype);
+
+	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
+        QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
 protected:
 	QFreeRdpPlatform *mPlatform;
-	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mActiveWindow;
 	QWindow *mEnteredWindow;

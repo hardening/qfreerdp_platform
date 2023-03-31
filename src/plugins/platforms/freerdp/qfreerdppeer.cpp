@@ -60,8 +60,7 @@ struct RdpPeerContext {
 
 	rdpSettings *settings;
 
-	/* file descriptors and associated events */
-	QSocketNotifier *events[32];
+	QSocketNotifier* event;
 
 	NSC_CONTEXT* nsc_context;
 
@@ -70,22 +69,22 @@ struct RdpPeerContext {
 
 static BOOL rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context) {
 	// init settings
-	context->settings = client->settings;
+	context->settings = client->context->settings;
 
 	// init codecs
 	client->context->codecs = codecs_new(client->context);
 	freerdp_client_codecs_prepare(client->context->codecs, FREERDP_CODEC_ALL,
-			client->settings->DesktopWidth, client->settings->DesktopHeight);
+			client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
 
 	// Planar configuration
 	client->context->codecs->planar->AllowRunLengthEncoding = TRUE; // enable RLE compression
 
 	// init NSC encoder
 	context->nsc_context = nsc_context_new();
-	nsc_context_reset(context->nsc_context, client->settings->DesktopWidth, client->settings->DesktopHeight);
-	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_LOSS_LEVEL, client->settings->NSCodecColorLossLevel);
-	nsc_context_set_parameters(context->nsc_context, NSC_ALLOW_SUBSAMPLING, client->settings->NSCodecAllowSubsampling ? 1 : 0);
-	nsc_context_set_parameters(context->nsc_context, NSC_DYNAMIC_COLOR_FIDELITY, client->settings->NSCodecAllowDynamicColorFidelity ? 1 : 0);
+	nsc_context_reset(context->nsc_context, client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
+	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_LOSS_LEVEL, client->context->settings->NSCodecColorLossLevel);
+	nsc_context_set_parameters(context->nsc_context, NSC_ALLOW_SUBSAMPLING, client->context->settings->NSCodecAllowSubsampling ? 1 : 0);
+	nsc_context_set_parameters(context->nsc_context, NSC_DYNAMIC_COLOR_FIDELITY, client->context->settings->NSCodecAllowDynamicColorFidelity ? 1 : 0);
 	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, PIXEL_FORMAT_BGRX32);
 
 	return TRUE;
@@ -399,7 +398,7 @@ static int keysymToQtKey(xkb_keysym_t keysym, Qt::KeyboardModifiers &modifiers, 
 }
 
 void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleNames) {
-	rdpSettings *settings = client->settings;
+	rdpSettings *settings = client->context->settings;
 
 	// check if keyboard must be emulated like MS Windows keyboard
 	if (settings->OsMajorType != OSMAJORTYPE_WINDOWS) {
@@ -448,14 +447,12 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 
 	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
-	for(int i = 0; i < 32; i++) {
-		QSocketNotifier *notifier = peerCtx->events[i];
-		if(notifier) {
-			notifier->setEnabled(false);
-			disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
-			dispatcher->unregisterSocketNotifier(notifier);
-			delete notifier;
-		}
+	QSocketNotifier *notifier = peerCtx->event;
+	if(notifier) {
+		notifier->setEnabled(false);
+		disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+		dispatcher->unregisterSocketNotifier(notifier);
+		delete notifier;
 	}
 
 	mClient->Close(mClient);
@@ -562,7 +559,7 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 
 	/* sends a full refresh */
 	// TODO: drop the full refresh ?
-	QRect refreshRect(0, 0, client->settings->DesktopWidth, client->settings->DesktopHeight);
+	QRect refreshRect(0, 0, client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
 
 	rdpPeer->repaint(QRegion(refreshRect));
 	rdpPeer->updateModifiersState(flags & KBD_SYNC_CAPS_LOCK, flags & KBD_SYNC_NUM_LOCK,
@@ -573,16 +570,17 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 }
 
 
-BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
+BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
 {
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
-	rdpSettings *settings = rdpPeer->mClient->settings;
+	rdpSettings *settings = rdpPeer->mClient->context->settings;
+	DWORD virtualScanCode = code;
 
 	if(flags & KBD_FLAGS_EXTENDED)
-		code |= KBD_FLAGS_EXTENDED;
+		virtualScanCode |= KBDEXT;
 
-	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(code, settings->KeyboardSubType);
+	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(virtualScanCode, settings->KeyboardSubType);
 	rdpPeer->handleVirtualKeycode(flags, vk_code);
 	return TRUE;
 }
@@ -676,7 +674,7 @@ BOOL QFreeRdpPeer::configureOptimizeMode(rdpSettings *settings) {
 }
 
 BOOL QFreeRdpPeer::detectDisplaySettings(freerdp_peer* client) {
-	rdpSettings *settings = client->settings;
+	rdpSettings *settings = client->context->settings;
 
 	// check color depths
 	if (settings->ColorDepth == 8) {
@@ -713,7 +711,7 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 
 	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
 	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
-	rdpSettings *settings = client->settings;
+	rdpSettings *settings = client->context->settings;
 
 	if (!rdpPeer->detectDisplaySettings(client)) {
 		// can't detect display settings
@@ -794,7 +792,7 @@ void QFreeRdpPeer::init_display(freerdp_peer* client) {
 	// default : show mouse
 	POINTER_SYSTEM_UPDATE pointer_system;
 	pointer_system.type = SYSPTR_DEFAULT;
-	client->update->pointer->PointerSystem(client->context, &pointer_system);
+	client->context->update->pointer->PointerSystem(client->context, &pointer_system);
 
 	// full refresh
 	const QImage *src = screen->getScreenBits();
@@ -842,34 +840,22 @@ bool QFreeRdpPeer::init() {
 
 	mClient->Initialize(mClient);
 
-	int rcount = 0;
-	void *rfds[32];
-	if (!mClient->GetFileDescriptor(mClient, rfds, &rcount)) {
-		qDebug() << "unable to retrieve client fds\n";
-		return false;
-	}
+	peerCtx->event = new QSocketNotifier(mClient->sockfd, QSocketNotifier::Read);
 
-	int i, fd;
-	for(i = 0; i < rcount; i++) {
-		fd = (int)(long)(rfds[i]);
+	connect(peerCtx->event, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 
-		peerCtx->events[i] = new QSocketNotifier(fd, QSocketNotifier::Read);
-
-		connect(peerCtx->events[i], SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
-	}
-
-	for( ; i < 32; i++)
-		peerCtx->events[i] = 0;
 	return true;
 }
 
 void QFreeRdpPeer::incomingBytes(int) {
 	//qDebug() << "incomingBytes()";
-	if(mClient->CheckFileDescriptor(mClient))
-		return;
-
-	qDebug() << "error checking file descriptor";
-	deleteLater();
+	do {
+		if(!mClient->CheckFileDescriptor(mClient)) {
+			qDebug() << "error checking file descriptor";
+			deleteLater();
+			return;
+		}
+	} while (mClient->HasMoreToRead(mClient));
 }
 
 void QFreeRdpPeer::repaintWithCompositor(const QRegion &region) {
@@ -1013,12 +999,6 @@ void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scroll
 
 
 void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
-	// check keyboard flags
-	if( !(flags & (KBD_FLAGS_DOWN|KBD_FLAGS_RELEASE)) ) {
-		qWarning("%s: notified for nothing, flags=%x", __func__, flags);
-		return;
-	}
-
 	// check XkbState
 	if (mXkbState == NULL) {
 		qWarning("Keyboard is not initialized. Received : %u", vk_code);
@@ -1033,7 +1013,7 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
 
 	// check if key is down or up
-	bool isDown = (flags & KBD_FLAGS_DOWN);
+	bool isDown = !(flags & KBD_FLAGS_RELEASE);
 
 #ifndef NO_XKB_SUPPORT
 	// get xkb symbol
@@ -1071,17 +1051,19 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 }
 
 QSize QFreeRdpPeer::getGeometry() {
-	return QSize(mClient->settings->DesktopWidth, mClient->settings->DesktopHeight);
+	return QSize(mClient->context->settings->DesktopWidth, mClient->context->settings->DesktopHeight);
 }
 
 void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
-	rdpUpdate *update = mClient->update;
+	rdpUpdate *update = mClient->context->update;
 
 	// use bitmap update
 	BITMAP_UPDATE *bitmapUpdate = (BITMAP_UPDATE*) malloc(sizeof(BITMAP_UPDATE));
+	
+	bitmapUpdate->skipCompression = false;
 
 	// set bitmap rectangles number
-	bitmapUpdate->number = bitmapUpdate->count = rects.size();
+	bitmapUpdate->number = rects.size();
 //	qDebug() << "number of rectangles : " << bitmapUpdate->number << endl;
 
 	bitmapUpdate->rectangles = (BITMAP_DATA*)malloc(bitmapUpdate->number * sizeof(BITMAP_DATA));
@@ -1107,6 +1089,7 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 		bitmapData.flags = 0x401; /* BITMAP_COMPRESSION | NO_BITMAP_COMPRESSION_HDR */
 
 		// width (inclusive bounds)
+		// freerdp requires it to be a multiple of 4
 		UINT32 width = (bitmapData.destRight - bitmapData.destLeft) + 1;
 		bitmapData.width = qCeil(qreal(width) / 16) * 16;
 
@@ -1146,7 +1129,6 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 		auto codecs = mClient->context->codecs;
 		if (settings->ColorDepth == 32) {
 			// bpp 32 bits for client -> use planar codec
-			bitmapData.flags = 0x0401;
 			UINT32 dstSize;
 
 			bitmapData.bitmapDataStream = freerdp_bitmap_compress_planar(codecs->planar, image.bits(), PIXEL_FORMAT_BGRX32,
@@ -1159,7 +1141,11 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 			UINT32 dstBitsPerPixel = settings->ColorDepth;
 			UINT32 dstBytesPerPixel =  ((dstBitsPerPixel + 7) / 8);
 			UINT32 srcBytesPerPixel = (image.depth() + 7) / 8;
-			UINT32 DstSize = bitmapData.width * bitmapData.height * dstBytesPerPixel;
+			// allocate a buffer for the compressed image
+			// if it is too small, freerdp crashes on the following assertion:
+			// [FATAL][com.freerdp.winpr.assert] - Stream_GetRemainingCapacity(_s) >= _n
+			// so let's use the size of the original (uncompressed) image
+			UINT32 DstSize = bitmapData.width * bitmapData.height * srcBytesPerPixel;
 			BYTE* buffer = (BYTE*) malloc(DstSize);
 
 			BOOL status = interleaved_compress(codecs->interleaved, buffer, &DstSize,
@@ -1169,7 +1155,7 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 											dstBitsPerPixel);
 
 			if (!status) {
-				qDebug() << "Can not interleaved compress";
+				qCritical() << "Can not interleaved compress";
 			}
 
 			bitmapData.bitmapDataStream = buffer;
@@ -1212,7 +1198,7 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 }
 
 void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
-	rdpUpdate *update = mClient->update;
+	rdpUpdate *update = mClient->context->update;
 	SURFACE_BITS_COMMAND cmd;
 	SURFACE_FRAME_MARKER marker;
 	marker.frameId = 0;
@@ -1228,7 +1214,7 @@ void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
 
 		// we split the surface to fit in the negotiated packet size
 		// 16 is an approximation of bytes required for the surface command
-		int heightIncrement = mClient->settings->MultifragMaxRequestSize / (16 + cmd.bmp.width * 4);
+		int heightIncrement = mClient->context->settings->MultifragMaxRequestSize / (16 + cmd.bmp.width * 4);
 		int remainingHeight = rect.height();
 		int top = rect.top();
 		while(remainingHeight) {
@@ -1244,7 +1230,7 @@ void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
 			if (mNsCodecSupported) {
 				// set codec params
 				cmd.bmp.bpp = 32;
-				cmd.bmp.codecID = mClient->settings->NSCodecId;
+				cmd.bmp.codecID = mClient->context->settings->NSCodecId;
 
 				// get bytes in cmd.bitmapData (no vertical flip)
 				qimage_subrect(subRect, src, cmd.bmp.bitmapData, false);

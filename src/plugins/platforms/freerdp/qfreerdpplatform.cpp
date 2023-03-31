@@ -55,7 +55,6 @@ struct QFreeRdpPlatformConfig {
 	bool tls_enabled;
 
 	QList<QFreeRdpPeer *> peers;
-	QList<QFreeRdpWindow *> windows;
 	QSize screenSz;
 
 	DisplayMode displayMode;
@@ -168,24 +167,37 @@ void QFreeRdpListener::incomingNewPeer() {
 
 void QFreeRdpListener::initialize() {
 	int fd;
-	int rcount = 0;
-	void* rfds[32];
+	HANDLE events[32];
 
 	listener = freerdp_listener_new();
 	listener->PeerAccepted = QFreeRdpListener::rdp_incoming_peer;
 	listener->param4 = this;
 	if (mPlatform->config->fixed_socket == -1) {
 		if(!listener->Open(listener, mPlatform->config->bind_address, mPlatform->config->port)) {
-			qDebug() << "unable to bind rdp socket\n";
+			qCritical() << "unable to bind rdp socket\n";
 			return;
 		}
 
-		if (!listener->GetFileDescriptor(listener, rfds, &rcount) || rcount < 1) {
-				qDebug("Failed to get FreeRDP file descriptor\n");
+		if (!listener->GetEventHandles(listener, events, 32)) {
+				qCritical("Failed to get FreeRDP event handle");
 				return;
 		}
 
-		fd = (int)(long)(rfds[0]);
+		if (events[1]) {
+			qDebug("freerdp is also listening on a second socket, but we ignore it");
+		}
+
+		if (!events[0]) {
+			qCritical("could not obtain FreeRDP event handle");
+			return;
+		}
+
+		fd = GetEventFileDescriptor(events[0]);
+
+		if (fd < 0) {
+			qCritical("could not obtain FreeRDP listening socket from event handle");
+			return;
+		}
 
 		if (mPlatform->config->port == 0) {
 			// set port number if specified port is 0 (random port number)
@@ -201,7 +213,14 @@ void QFreeRdpListener::initialize() {
 		// initialize with specified socket
 		fd = mPlatform->config->fixed_socket;
 	}
+	// this function is sometimes invoked from a freerpd thread, but QSocketNotifier constructor
+	// needs to be invoked on a QThread. QMetaObject::invokeMethod queues the function to be
+	// called by the event loop, and more specifically the thread that owns this
+	QMetaObject::invokeMethod(this, "startListener", Qt::QueuedConnection, Q_ARG(int, fd));
+}
 
+// must be invoked on the thread that owns `this`
+void QFreeRdpListener::startListener(int fd) {
 	mSocketNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
 	mPlatform->getDispatcher()->registerSocketNotifier(mSocketNotifier);
 
@@ -241,12 +260,13 @@ void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
-	foreach(QFreeRdpWindow *rdpWindow, config->windows) {
+	foreach(QFreeRdpWindow *rdpWindow, *mWindowManager->getAllWindows()) {
 		if(rdpWindow->window() == w) {
 			rdpWindow->setBackingStore(back);
-			break;
+			return;
 		}
 	}
+	qWarning("did not find window %p in window manager to register its backing store", (void*)w);
 }
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {
@@ -257,20 +277,40 @@ void QFreeRdpPlatform::repaint(const QRegion &region) {
 
 QPlatformWindow *QFreeRdpPlatform::newWindow(QWindow *window) {
 	QFreeRdpWindow *ret = new QFreeRdpWindow(window, this);
-	config->windows.push_back(ret);
 	mWindowManager->addWindow(ret);
 	return ret;
 }
 
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
-	settings->RdpKeyFile = strdup(config->rdp_key);
 	if(config->tls_enabled) {
 		settings->TLSMinVersion = 0x0303; //TLS1.2 number registered to the IANA
-		settings->CertificateFile = strdup(config->server_cert);
-		settings->PrivateKeyFile = strdup(config->server_key);
+		rdpPrivateKey* key = freerdp_key_new_from_file(config->server_key);
+		if (!key) {
+			qCritical() << "failed to open" << config->server_key;
+		} else {
+			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
+				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << config->server_key;
+			}
+		}
+		rdpCertificate* cert = freerdp_certificate_new_from_file(config->server_cert);
+		if (!cert) {
+			qCritical() << "failed to open" << config->server_cert;
+		} else {
+			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerCertificate, cert, 1)) {
+				qCritical() << "failed to set FreeRDP_RdpServerCertificate from" << config->server_cert;
+			}
+		}
 	} else {
 		settings->TlsSecurity = FALSE;
+		rdpPrivateKey* key = freerdp_key_new_from_file(config->rdp_key);
+		if (!key) {
+			qCritical() << "failed to open" << config->rdp_key;
+		} else {
+			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
+				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << config->rdp_key;
+			}
+		}
 	}
 
 	// FIPS mode is currently disabled

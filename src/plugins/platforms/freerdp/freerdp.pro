@@ -12,8 +12,7 @@ DESTDIR = $$PREFIX/lib/platforms
 
 unix {
     CONFIG += link_pkgconfig
-    PKGCONFIG += freerdp2 xkbcommon glib-2.0
-    LIBS += -lwinpr2 -lwinpr-tools2
+    PKGCONFIG += freerdp3 winpr3 winpr-tools3 xkbcommon glib-2.0
 }
 
 *-g++* {
@@ -45,14 +44,11 @@ CONFIG += link_pkgconfig qpa/genericunixfontdatabase c++14
 
 QT += core-private gui-private
 
-equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {                                                                                                                                                                               
+equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 	QT += platformsupport-private
 } else {
 	QT += fontdatabase_support_private eventdispatcher_support_private theme_support_private
 }
-
-OTHER_FILES = freerdp.json
-
 
 SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
