@@ -103,20 +103,17 @@ void qimage_bitblt(const QRect &srcRect, const QImage *srcImg, const QPoint &dst
 }
 
 void qimage_fillrect(const QRect &rect, QImage *dest, quint32 color) {
-	// prepare first line
-	quint32 *firstLine = (quint32 *)dest->bits();
-	for(int w = 0; w < rect.width(); w++, firstLine++)
-		*firstLine = color;
+	// check dimensions
+	QPoint end = rect.bottomRight();
+	if (dest->height() < end.y() || dest->width() < end.x()) {
+		qCritical() << "qfreerdp: cannot fill " << rect << " into " << dest->width() << "x" << dest->height() << "image";
+		return;
+	}
 
-	// and copy it
-	int stride = dest->bytesPerLine();
-	QPoint topLeft = rect.topLeft();
-	uchar *ptr = dest->bits() +
-			((topLeft.y() + 1) * stride) +
-			(topLeft.x() * 4);
-
-	for(int h = 1; h < rect.height(); h++, ptr += stride)
-		memcpy(ptr, dest->bits(), stride);
+	for(int h = rect.top(); h < rect.bottom(); h++) {
+		quint32* begin = ((quint32*)dest->scanLine(h)) + rect.left();
+		std::fill(begin, begin+rect.width(), color);
+	}
 }
 
 
