@@ -52,7 +52,6 @@ equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 
 SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
-		qfreerdpintegration.cpp		\
 		qfreerdpplatform.cpp 		\
 		qfreerdpscreen.cpp			\
 		qfreerdpcursor.cpp			\
@@ -62,8 +61,8 @@ SOURCES += main.cpp 				\
 		qfreerdpwindowmanager.cpp
 
 
-HEADERS += qfreerdpintegration.h \
-	qfreerdpcompositor.h \
+HEADERS += qfreerdpcompositor.h \
+	qfreerdpplatform.h \
 	qfreerdpscreen.h \
 	qfreerdpcursor.h			\
 	qfreerdpbackingstore.h \

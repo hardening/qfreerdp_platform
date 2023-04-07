@@ -26,6 +26,8 @@
 #include <QSocketNotifier>
 #include <qpa/qplatformintegration.h>
 #include <qabstracteventdispatcher.h>
+#include <QtGui/qpa/qplatforminputcontextfactory_p.h>
+
 #include <freerdp/listener.h>
 
 QT_BEGIN_NAMESPACE
@@ -38,6 +40,7 @@ class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 
+/** @brief */
 enum DisplayMode {
 	UNKNOWN = 0,
 	LEGACY = 1,
@@ -46,34 +49,46 @@ enum DisplayMode {
 };
 
 /**
- *
+ * @brief
  */
-class QFreeRdpPlatform : public QObject {
+class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpScreen;
 	friend class QFreeRdpBackingStore;
 	friend class QFreeRdpWindow;
 	friend class QFreeRdpPeer;
 	friend class QFreeRdpListener;
+
+	Q_OBJECT
 public:
 	/**
 	 * @param dispatcher
 	 */
-	QFreeRdpPlatform(const QStringList& paramList, QAbstractEventDispatcher *dispatcher);
+	QFreeRdpPlatform(const QStringList& paramList);
 
 	virtual ~QFreeRdpPlatform();
 
+    /** @overload QPlatformIntegration
+     * @{ */
+    virtual bool hasCapability(QPlatformIntegration::Capability cap) const;
+    virtual QPlatformWindow *createPlatformWindow(QWindow *window) const;
+    virtual QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const;
+    virtual QPlatformFontDatabase *fontDatabase() const;
+    virtual QStringList themeNames() const;
+    virtual QPlatformTheme *createPlatformTheme(const QString &name) const;
+    virtual QPlatformNativeInterface *nativeInterface()const;
+    virtual QPlatformInputContext *inputContext() const;
+    virtual void initialize();
+
+#if QT_VERSION < 0x050200
+    virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+#else
+    virtual QAbstractEventDispatcher *createEventDispatcher() const;
+#endif
+    /** @} */
+
+
 	/** @return */
 	QFreeRdpScreen *getScreen() { return mScreen; }
-
-	/**
-	 * @return listen address
-	 */
-	char* getListenAddress() const;
-
-	/**
-	 * @return listen port
-	 */
-	int getListenPort() const;
 
 	/** registers a RDP peer
 	 * @param peer
@@ -93,7 +108,7 @@ public:
 	void registerBackingStore(QWindow *w, QFreeRdpBackingStore *back);
 
 	/** @return the event dispatcher */
-	QAbstractEventDispatcher *getDispatcher() { return mDispatcher; }
+	QAbstractEventDispatcher *getDispatcher() { return mEventDispatcher; }
 
 	QPlatformWindow *newWindow(QWindow *window);
 
@@ -103,11 +118,16 @@ public:
 
 //public:
 protected:
-	QAbstractEventDispatcher *mDispatcher;
-    QFreeRdpPlatformConfig *config;
+    QPlatformFontDatabase *mFontDb;
+    QAbstractEventDispatcher *mEventDispatcher;
+    QPlatformNativeInterface *mNativeInterface;
+    QScopedPointer<QPlatformInputContext> mInputContext;
+
+    QFreeRdpPlatformConfig *mConfig;
     QFreeRdpScreen *mScreen;
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;
+	QList<QFreeRdpPeer *> mPeers;
 };
 QT_END_NAMESPACE
 

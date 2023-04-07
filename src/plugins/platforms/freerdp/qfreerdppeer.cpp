@@ -419,7 +419,6 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 #endif
 
 QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
-		mFlags(0),
 		mPlatform(platform),
 		mClient(client),
 		mBogusCheckFileDescriptor(0),
