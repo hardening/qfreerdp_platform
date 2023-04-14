@@ -21,6 +21,8 @@
  */
 
 #include <winpr/stream.h>
+#include <winpr/user.h>
+
 #include <freerdp/freerdp.h>
 #include <freerdp/codec/rfx.h>
 #include <freerdp/codec/nsc.h>
@@ -28,17 +30,21 @@
 #include <freerdp/codec/bitmap.h>
 #include <freerdp/gdi/gdi.h>
 #include <freerdp/input.h>
+#include <freerdp/channels/cliprdr.h>
 
 #include "qfreerdppeer.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpscreen.h"
 #include "qfreerdpplatform.h"
 #include "qfreerdpwindowmanager.h"
+#include "qfreerdpclipboard.h"
+#include "qfreerdppeerclipboard.h"
 
 #include <QAbstractEventDispatcher>
 #include <QSocketNotifier>
 #include <QDebug>
 #include <QMutexLocker>
+#include <QStringList>
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <qpa/qplatforminputcontext.h>
 #include <QtGui/private/qguiapplication_p.h>
@@ -61,9 +67,9 @@ struct RdpPeerContext {
 	rdpSettings *settings;
 
 	QSocketNotifier* event;
+	QSocketNotifier* channelEvent;
 
 	NSC_CONTEXT* nsc_context;
-
 };
 
 
@@ -418,6 +424,8 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 
 #endif
 
+
+
 QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mPlatform(platform),
 		mClient(client),
@@ -426,7 +434,9 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mKeyTime(0),
 		mSurfaceOutputModeEnabled(false),
 		mNsCodecSupported(false),
-		mCompositor(platform->getScreen())
+		mCompositor(platform->getScreen()),
+		mVcm(nullptr),
+		mClipboard(nullptr)
 #ifndef NO_XKB_SUPPORT
 		, mXkbContext(0)
 		, mXkbKeymap(0)
@@ -442,17 +452,28 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 	}
 }
 
-QFreeRdpPeer::~QFreeRdpPeer() {
-	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
-
+void QFreeRdpPeer::dropSocketNotifier(QSocketNotifier *notifier) {
 	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
-	QSocketNotifier *notifier = peerCtx->event;
 	if(notifier) {
 		notifier->setEnabled(false);
 		disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 		dispatcher->unregisterSocketNotifier(notifier);
 		delete notifier;
 	}
+}
+
+QFreeRdpPeer::~QFreeRdpPeer() {
+	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
+
+	dropSocketNotifier(peerCtx->event);
+	dropSocketNotifier(peerCtx->channelEvent);
+
+	if (mClipboard)
+		delete mClipboard;
+
+	if (mVcm)
+		WTSCloseServer(mVcm);
+	mVcm = NULL;
 
 	mClient->Close(mClient);
 
@@ -768,6 +789,18 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 	// display initialization
 	rdpPeer->init_display(client);
 
+	if (WTSVirtualChannelManagerIsChannelJoined(rdpPeer->mVcm, CLIPRDR_SVC_CHANNEL_NAME))
+	{
+		qDebug() << "instanciating clipboard component";
+
+		rdpPeer->mClipboard = new QFreerdpPeerClipboard(rdpPeer, rdpPeer->mVcm);
+		if (!rdpPeer->mClipboard->start()) {
+			qDebug() << "error starting clipboard";
+			return FALSE;
+		}
+		rdpPeer->mPlatform->mClipboard->registerPeer(rdpPeer->mClipboard);
+	}
+
 	return TRUE;
 }
 
@@ -839,9 +872,22 @@ bool QFreeRdpPeer::init() {
 
 	mClient->Initialize(mClient);
 
-	peerCtx->event = new QSocketNotifier(mClient->sockfd, QSocketNotifier::Read);
+	mVcm = WTSOpenServerA((LPSTR)mClient->context);
+	if (!mVcm) {
+		qDebug() << "unable to retrieve client VCM\n";
+		return false;
+	}
 
+	peerCtx->event = new QSocketNotifier(mClient->sockfd, QSocketNotifier::Read);
 	connect(peerCtx->event, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+
+	HANDLE vcmHandle = WTSVirtualChannelManagerGetEventHandle(mVcm);
+	if (vcmHandle)
+	{
+		peerCtx->channelEvent = new QSocketNotifier(GetEventFileDescriptor(vcmHandle), QSocketNotifier::Read);
+		connect(peerCtx->channelEvent, SIGNAL(activated(int)), this, SLOT(channelTraffic(int)) );
+	}
+
 
 	return true;
 }
@@ -855,6 +901,13 @@ void QFreeRdpPeer::incomingBytes(int) {
 			return;
 		}
 	} while (mClient->HasMoreToRead(mClient));
+}
+
+void QFreeRdpPeer::channelTraffic(int) {
+	if (!WTSVirtualChannelManagerCheckFileDescriptor(mVcm)) {
+		qDebug() << "error treating channels";
+		deleteLater();
+	}
 }
 
 void QFreeRdpPeer::repaintWithCompositor(const QRegion &region) {

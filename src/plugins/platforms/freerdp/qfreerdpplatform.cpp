@@ -42,6 +42,7 @@
 #include "qfreerdplistener.h"
 #include "qfreerdpscreen.h"
 #include "qfreerdppeer.h"
+#include "qfreerdpclipboard.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwindowmanager.h"
 #include <sys/socket.h>
@@ -49,6 +50,8 @@
 
 #include <QtCore/QtDebug>
 #include <winpr/ssl.h>
+#include <winpr/wtsapi.h>
+#include <freerdp/channels/channels.h>
 
 #define DEFAULT_CERT_FILE 	"cert.crt"
 #define DEFAULT_KEY_FILE 	"cert.key"
@@ -253,6 +256,7 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 : mFontDb(new QGenericUnixFontDatabase())
 , mEventDispatcher(createUnixEventDispatcher())
 , mNativeInterface(new QPlatformNativeInterface())
+, mClipboard(new QFreeRdpClipboard())
 , mConfig(new QFreeRdpPlatformConfig(paramList))
 , mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
 , mWindowManager(new QFreeRdpWindowManager(this))
@@ -267,6 +271,8 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 	// set information on platform
 	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
 	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
+
+	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
@@ -326,6 +332,10 @@ void QFreeRdpPlatform::initialize() {
 
 QPlatformInputContext *QFreeRdpPlatform::inputContext() const {
 	return mInputContext.data();
+}
+
+QPlatformClipboard *QFreeRdpPlatform::clipboard() const {
+	return mClipboard;
 }
 
 

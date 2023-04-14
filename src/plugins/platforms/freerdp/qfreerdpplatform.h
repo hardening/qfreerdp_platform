@@ -39,6 +39,7 @@ class QFreeRdpScreen;
 class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
+class QFreeRdpClipboard;
 
 /** @brief */
 enum DisplayMode {
@@ -77,6 +78,7 @@ public:
     virtual QPlatformTheme *createPlatformTheme(const QString &name) const;
     virtual QPlatformNativeInterface *nativeInterface()const;
     virtual QPlatformInputContext *inputContext() const;
+    virtual QPlatformClipboard *clipboard() const;
     virtual void initialize();
 
 #if QT_VERSION < 0x050200
@@ -89,6 +91,9 @@ public:
 
 	/** @return */
 	QFreeRdpScreen *getScreen() { return mScreen; }
+
+	/** @return */
+	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
 
 	/** registers a RDP peer
 	 * @param peer
@@ -122,6 +127,7 @@ protected:
     QAbstractEventDispatcher *mEventDispatcher;
     QPlatformNativeInterface *mNativeInterface;
     QScopedPointer<QPlatformInputContext> mInputContext;
+    QFreeRdpClipboard *mClipboard;
 
     QFreeRdpPlatformConfig *mConfig;
     QFreeRdpScreen *mScreen;

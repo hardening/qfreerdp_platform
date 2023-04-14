@@ -25,6 +25,7 @@
 #include <memory>
 
 #include <freerdp/peer.h>
+
 #include <QImage>
 #include <QMap>
 
@@ -37,11 +38,15 @@
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
+class QFreerdpPeerClipboard;
+class QSocketNotifier;
 
 /**
  * @brief a peer connected in RDP to the Qt5 backend
  */
 class QFreeRdpPeer : public QObject {
+	friend class QFreerdpPeerClipboard;
+
     Q_OBJECT
 
 public:
@@ -62,6 +67,8 @@ protected:
 
 public slots:
 	void incomingBytes(int sock);
+	void channelTraffic(int sock);
+
 
 protected:
 	/** freerdp callbacks
@@ -78,7 +85,7 @@ protected:
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	/** @} */
 
-
+	void dropSocketNotifier(QSocketNotifier *notifier);
 protected:
 	/** @brief */
 	enum PeerFlags {
@@ -98,6 +105,10 @@ protected:
     bool mSurfaceOutputModeEnabled;
     bool mNsCodecSupported;
     QFreeRdpCompositor mCompositor;
+
+    HANDLE mVcm;
+    QFreerdpPeerClipboard *mClipboard;
+
 
 #ifndef NO_XKB_SUPPORT
     struct xkb_context *mXkbContext;

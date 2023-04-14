@@ -11,8 +11,8 @@ isEmpty(PREFIX) {
 DESTDIR = $$PREFIX/lib/platforms
 
 unix {
-    CONFIG += link_pkgconfig
-    PKGCONFIG += freerdp3 winpr3 winpr-tools3 xkbcommon glib-2.0
+    CONFIG += link_pkgconfig # debug nostrip
+    PKGCONFIG += freerdp3 freerdp-server3 winpr3 winpr-tools3 xkbcommon glib-2.0
 }
 
 *-g++* {
@@ -52,22 +52,26 @@ equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 
 SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
+		qfreerdpclipboard.cpp       \
 		qfreerdpplatform.cpp 		\
 		qfreerdpscreen.cpp			\
 		qfreerdpcursor.cpp			\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
 		qfreerdppeer.cpp			\
+		qfreerdppeerclipboard.cpp	\
 		qfreerdpwindowmanager.cpp
 
 
 HEADERS += qfreerdpcompositor.h \
 	qfreerdpplatform.h \
+	qfreerdpclipboard.h \
 	qfreerdpscreen.h \
 	qfreerdpcursor.h			\
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
+	qfreerdppeerclipboard.h	\
 	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
 	qfreerdpcursor.h 
