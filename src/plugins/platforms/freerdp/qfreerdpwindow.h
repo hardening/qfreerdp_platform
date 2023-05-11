@@ -47,6 +47,7 @@ public:
     virtual void lower();
     virtual void setVisible(bool visible);
     virtual void setGeometry(const QRect &rect);
+    virtual void propagateSizeHints();
     /** @} */
 
 

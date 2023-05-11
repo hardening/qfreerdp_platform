@@ -12,7 +12,7 @@ DESTDIR = $$PREFIX/lib/platforms
 
 unix {
     CONFIG += link_pkgconfig # debug nostrip
-    PKGCONFIG += freerdp3 freerdp-server3 winpr3 winpr-tools3 xkbcommon glib-2.0
+    PKGCONFIG += freerdp3 freerdp-server3 winpr3 winpr-tools3 xkbcommon glib-2.0 xcursor
 }
 
 *-g++* {
@@ -55,12 +55,14 @@ SOURCES += main.cpp 				\
 		qfreerdpclipboard.cpp       \
 		qfreerdpplatform.cpp 		\
 		qfreerdpscreen.cpp			\
-		qfreerdpcursor.cpp			\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
 		qfreerdppeer.cpp			\
 		qfreerdppeerclipboard.cpp	\
-		qfreerdpwindowmanager.cpp
+		qfreerdpwindowmanager.cpp	\
+		xcursors/xcursor.cpp        \
+		xcursors/rdp-cursor.cpp     \
+		xcursors/qfreerdpxcursor.cpp
 
 
 HEADERS += qfreerdpcompositor.h \
@@ -74,4 +76,7 @@ HEADERS += qfreerdpcompositor.h \
 	qfreerdppeerclipboard.h	\
 	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
-	qfreerdpcursor.h 
+	xcursors/cursor-data.h \
+	xcursors/xcursor.h \
+	xcursors/rdp-cursor.h \
+	xcursors/qfreerdpxcursor.h

@@ -429,3 +429,18 @@ DisplayMode QFreeRdpPlatform::getDisplayMode() {
 	return mConfig->displayMode;
 }
 
+void QFreeRdpPlatform::setBlankCursor()
+{
+	foreach(QFreeRdpPeer *peer, mPeers) {
+		peer->setBlankCursor();
+	}
+}
+
+void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer)
+{
+	foreach(QFreeRdpPeer *peer, mPeers) {
+		peer->setPointer(pointer);
+	}
+
+}
+

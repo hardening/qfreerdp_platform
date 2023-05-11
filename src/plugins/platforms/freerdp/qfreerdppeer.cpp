@@ -1106,6 +1106,21 @@ QSize QFreeRdpPeer::getGeometry() {
 	return QSize(mClient->context->settings->DesktopWidth, mClient->context->settings->DesktopHeight);
 }
 
+bool QFreeRdpPeer::setBlankCursor()
+{
+	POINTER_SYSTEM_UPDATE system_pointer = { 0 };
+	system_pointer.type = SYSPTR_NULL;
+
+	rdpPointerUpdate* pointer = mClient->context->update->pointer;
+	return pointer->PointerSystem(mClient->context, &system_pointer);
+}
+
+bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer)
+{
+	rdpPointerUpdate* pointer = mClient->context->update->pointer;
+	return pointer->PointerLarge(mClient->context, largePointer);
+}
+
 void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 	rdpUpdate *update = mClient->context->update;
 

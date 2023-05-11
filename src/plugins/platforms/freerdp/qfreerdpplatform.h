@@ -29,6 +29,7 @@
 #include <QtGui/qpa/qplatforminputcontextfactory_p.h>
 
 #include <freerdp/listener.h>
+#include <freerdp/pointer.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -40,6 +41,7 @@ class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 class QFreeRdpClipboard;
+
 
 /** @brief */
 enum DisplayMode {
@@ -54,6 +56,7 @@ enum DisplayMode {
  */
 class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpScreen;
+	friend class QFreeRdpCursor;
 	friend class QFreeRdpBackingStore;
 	friend class QFreeRdpWindow;
 	friend class QFreeRdpPeer;
@@ -89,7 +92,7 @@ public:
     /** @} */
 
 
-	/** @return */
+	/** @return the main screen */
 	QFreeRdpScreen *getScreen() { return mScreen; }
 
 	/** @return */
@@ -121,7 +124,9 @@ public:
 
 	DisplayMode getDisplayMode();
 
-//public:
+	void setBlankCursor();
+	void setPointer(const POINTER_LARGE_UPDATE *pointer);
+
 protected:
     QPlatformFontDatabase *mFontDb;
     QAbstractEventDispatcher *mEventDispatcher;

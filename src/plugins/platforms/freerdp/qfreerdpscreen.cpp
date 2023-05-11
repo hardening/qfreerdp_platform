@@ -22,7 +22,7 @@
 
 #include "qfreerdpscreen.h"
 #include "qfreerdpplatform.h"
-#include "qfreerdpcursor.h"
+#include "xcursors/qfreerdpxcursor.h"
 #include "qfreerdpwindowmanager.h"
 
 #include <QtCore/QtDebug>
@@ -32,8 +32,9 @@
 
 QT_BEGIN_NAMESPACE
 
-QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height):
-	mPlatform(platform), mCursor(new QFreeRdpCursor(this))
+QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height)
+: mPlatform(platform)
+, mCursor(new QFreeRdpCursor(platform))
 {
 	qDebug("QFreeRdpScreen::%s(%d x %d)", __func__, width, height);
     mGeometry = QRect(0, 0, width, height);

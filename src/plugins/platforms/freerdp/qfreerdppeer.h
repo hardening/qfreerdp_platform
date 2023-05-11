@@ -25,6 +25,7 @@
 #include <memory>
 
 #include <freerdp/peer.h>
+#include <freerdp/pointer.h>
 
 #include <QImage>
 #include <QMap>
@@ -57,6 +58,9 @@ public:
     void repaintWithCompositor(const QRegion &rect);
 
     QSize getGeometry();
+
+    bool setBlankCursor();
+    bool setPointer(const POINTER_LARGE_UPDATE *pointer);
 
 protected:
 	void repaint(const QRegion &rect);
