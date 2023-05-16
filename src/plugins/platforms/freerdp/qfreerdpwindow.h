@@ -82,6 +82,7 @@ protected:
     QPlatformScreen *mScreen;
     WId mWinId;
     bool mVisible;
+    bool mSentInitialResize;
 };
 
 QT_END_NAMESPACE

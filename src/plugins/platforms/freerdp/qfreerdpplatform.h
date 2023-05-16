@@ -118,8 +118,6 @@ public:
 	/** @return the event dispatcher */
 	QAbstractEventDispatcher *getDispatcher() { return mEventDispatcher; }
 
-	QPlatformWindow *newWindow(QWindow *window);
-
 	void configureClient(rdpSettings *settings);
 
 	DisplayMode getDisplayMode();

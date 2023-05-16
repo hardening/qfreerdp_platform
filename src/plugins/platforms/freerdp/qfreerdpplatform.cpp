@@ -363,12 +363,6 @@ void QFreeRdpPlatform::repaint(const QRegion &region) {
 	}
 }
 
-QPlatformWindow *QFreeRdpPlatform::newWindow(QWindow *window) {
-	QFreeRdpWindow *ret = new QFreeRdpWindow(window, this);
-	mWindowManager->addWindow(ret);
-	return ret;
-}
-
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if(mConfig->tls_enabled) {

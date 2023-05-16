@@ -50,7 +50,7 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 
 void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
 	if(mActiveWindow == window)
-		mActiveWindow = 0;
+		mActiveWindow = nullptr;
 	if(!mWindows.removeAll(window))
 		return;
 	repaint(window->geometry());
@@ -61,8 +61,9 @@ void QFreeRdpWindowManager::raise(QFreeRdpWindow *window) {
 		return;
 
 	mWindows.push_front(window);
-	if(window->isExposed())
+	if(window->isExposed()) {
 		repaint(window->geometry());
+	}
 }
 
 void QFreeRdpWindowManager::lower(QFreeRdpWindow *window) {

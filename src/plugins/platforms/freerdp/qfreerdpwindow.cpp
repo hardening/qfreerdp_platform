@@ -38,7 +38,8 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
     mPlatform(platform),
     mBackingStore(0),
     mWinId( WId(globalWinId++) ),
-    mVisible(false)
+    mVisible(false),
+    mSentInitialResize(false)
 {
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
 	qDebug("QFreeRdpWindow ctor(%llu, type=0x%x)", mWinId, window->type());
@@ -93,9 +94,17 @@ void QFreeRdpWindow::lower() {
 
 void QFreeRdpWindow::setVisible(bool visible) {
     qDebug("QFreeRdpWindow::%s(%llu,visible=%d)", __func__, mWinId, visible);
+	mVisible = visible;
 	QPlatformWindow::setVisible(visible);
 
-	mVisible = visible;
+	if (visible) {
+		if (!mSentInitialResize) {
+			QWindowSystemInterface::handleGeometryChange(window(), geometry());
+			mSentInitialResize = true;
+		}
+		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
+	}
+
 	mPlatform->mWindowManager->repaint(geometry());
 }
 
