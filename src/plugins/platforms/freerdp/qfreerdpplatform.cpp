@@ -20,10 +20,29 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
+#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
+#include <QtThemeSupport/private/qgenericunixthemes_p.h>
+
+#include <qpa/qplatformnativeinterface.h>
+#include <QtGui/private/qguiapplication_p.h>
+
+#include <qpa/qwindowsysteminterface.h>
+#include <qpa/qplatformcursor.h>
+
+#include <qpa/qplatforminputcontextfactory_p.h>
+#include <qpa/qplatforminputcontext.h>
+
+#include <QtGui/QSurfaceFormat>
+#include <QtCore/QSocketNotifier>
+
+
 #include "qfreerdpplatform.h"
+#include "qfreerdpbackingstore.h"
 #include "qfreerdplistener.h"
 #include "qfreerdpscreen.h"
 #include "qfreerdppeer.h"
+#include "qfreerdpclipboard.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwindowmanager.h"
 #include <sys/socket.h>
@@ -31,15 +50,17 @@
 
 #include <QtCore/QtDebug>
 #include <winpr/ssl.h>
+#include <winpr/wtsapi.h>
+#include <freerdp/channels/channels.h>
 
 #define DEFAULT_CERT_FILE 	"cert.crt"
 #define DEFAULT_KEY_FILE 	"cert.key"
 
 
-/** @brief private data for FreeRdpPlatform */
+/** @brief configuration for FreeRdpPlatform */
 struct QFreeRdpPlatformConfig {
 	/**
-	 * @param params
+	 * @param params list of parameters
 	 */
 	QFreeRdpPlatformConfig(const QStringList &params);
 
@@ -54,9 +75,7 @@ struct QFreeRdpPlatformConfig {
 	char *rdp_key;
 	bool tls_enabled;
 
-	QList<QFreeRdpPeer *> peers;
 	QSize screenSz;
-
 	DisplayMode displayMode;
 };
 
@@ -134,7 +153,10 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 }
 
 QFreeRdpPlatformConfig::~QFreeRdpPlatformConfig() {
-
+	free(bind_address);
+	free(server_cert);
+	free(server_key);
+	free(rdp_key);
 }
 
 QFreeRdpListener::QFreeRdpListener(QFreeRdpPlatform *platform) :
@@ -172,8 +194,10 @@ void QFreeRdpListener::initialize() {
 	listener = freerdp_listener_new();
 	listener->PeerAccepted = QFreeRdpListener::rdp_incoming_peer;
 	listener->param4 = this;
-	if (mPlatform->config->fixed_socket == -1) {
-		if(!listener->Open(listener, mPlatform->config->bind_address, mPlatform->config->port)) {
+
+	auto config = mPlatform->mConfig;
+	if (config->fixed_socket == -1) {
+		if(!listener->Open(listener, config->bind_address, config->port)) {
 			qCritical() << "unable to bind rdp socket\n";
 			return;
 		}
@@ -199,19 +223,19 @@ void QFreeRdpListener::initialize() {
 			return;
 		}
 
-		if (mPlatform->config->port == 0) {
+		if (config->port == 0) {
 			// set port number if specified port is 0 (random port number)
 			struct sockaddr_in sin;
 			socklen_t len = sizeof(sin);
 			if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
 			    perror("getsockname");
 			else
-			    mPlatform->config->port = ntohs(sin.sin_port);
+			    config->port = ntohs(sin.sin_port);
 		}
 
 	} else {
 		// initialize with specified socket
-		fd = mPlatform->config->fixed_socket;
+		fd = config->fixed_socket;
 	}
 	// this function is sometimes invoked from a freerpd thread, but QSocketNotifier constructor
 	// needs to be invoked on a QThread. QMetaObject::invokeMethod queues the function to be
@@ -228,35 +252,99 @@ void QFreeRdpListener::startListener(int fd) {
 }
 
 
-QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList, QAbstractEventDispatcher *dispatcher) :
-	mDispatcher(dispatcher), mListener(0)
+QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
+: mFontDb(new QGenericUnixFontDatabase())
+, mEventDispatcher(createUnixEventDispatcher())
+, mNativeInterface(new QPlatformNativeInterface())
+, mClipboard(new QFreeRdpClipboard())
+, mConfig(new QFreeRdpPlatformConfig(paramList))
+, mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
+, mWindowManager(new QFreeRdpWindowManager(this))
+, mListener(new QFreeRdpListener(this))
 {
-	config = new QFreeRdpPlatformConfig(paramList);
-	mScreen = new QFreeRdpScreen(this, config->screenSz.width(), config->screenSz.height());
-
-	mWindowManager = new QFreeRdpWindowManager(this);
-	mListener = new QFreeRdpListener(this);
 	mListener->initialize();
+
+	//Disable desktop settings for now (or themes crash)
+	QGuiApplicationPrivate::obey_desktop_settings = false;
+	QWindowSystemInterface::handleScreenAdded(mScreen);
+
+	// set information on platform
+	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
+	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
+
+	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
-	delete config; 
+	delete mConfig;
 }
 
-char* QFreeRdpPlatform::getListenAddress() const {
-	return config->bind_address;
+QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
+	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
+	mWindowManager->addWindow(ret);
+	return ret;
 }
 
-int QFreeRdpPlatform::getListenPort() const {
-	return config->port;
+QPlatformBackingStore *QFreeRdpPlatform::createPlatformBackingStore(QWindow *window) const {
+    return new QFreeRdpBackingStore(window, const_cast<QFreeRdpPlatform*>(this));
 }
+
+#if QT_VERSION < 0x050200
+QAbstractEventDispatcher *QFreeRdpPlatform::guiThreadEventDispatcher() const {
+    return mEventDispatcher;
+}
+#else
+QAbstractEventDispatcher *QFreeRdpPlatform::createEventDispatcher() const {
+    return mEventDispatcher;
+}
+#endif
+
+QPlatformFontDatabase *QFreeRdpPlatform::fontDatabase() const {
+    return mFontDb;
+}
+
+QStringList QFreeRdpPlatform::themeNames() const {
+    return QGenericUnixTheme::themeNames();
+}
+
+QPlatformTheme *QFreeRdpPlatform::createPlatformTheme(const QString &name) const {
+    return QGenericUnixTheme::createUnixTheme(name);
+}
+
+bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
+{
+    switch (cap) {
+    case ThreadedPixmaps:
+    	return true;
+    default:
+    	return QPlatformIntegration::hasCapability(cap);
+    }
+}
+
+QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
+	return mNativeInterface;
+}
+
+void QFreeRdpPlatform::initialize() {
+	// create Input Context Plugin
+	mInputContext.reset(QPlatformInputContextFactory::create());
+}
+
+QPlatformInputContext *QFreeRdpPlatform::inputContext() const {
+	return mInputContext.data();
+}
+
+QPlatformClipboard *QFreeRdpPlatform::clipboard() const {
+	return mClipboard;
+}
+
 
 void QFreeRdpPlatform::registerPeer(QFreeRdpPeer *peer) {
-	config->peers.push_back(peer);
+	mPeers.push_back(peer);
 }
 
 void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
-	config->peers.removeAll(peer);
+	mPeers.removeAll(peer);
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
@@ -270,45 +358,39 @@ void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *ba
 }
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {
-	foreach(QFreeRdpPeer *peer, config->peers) {
+	foreach(QFreeRdpPeer *peer, mPeers) {
 		peer->repaintWithCompositor(region);
 	}
 }
 
-QPlatformWindow *QFreeRdpPlatform::newWindow(QWindow *window) {
-	QFreeRdpWindow *ret = new QFreeRdpWindow(window, this);
-	mWindowManager->addWindow(ret);
-	return ret;
-}
-
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
-	if(config->tls_enabled) {
+	if(mConfig->tls_enabled) {
 		settings->TLSMinVersion = 0x0303; //TLS1.2 number registered to the IANA
-		rdpPrivateKey* key = freerdp_key_new_from_file(config->server_key);
+		rdpPrivateKey* key = freerdp_key_new_from_file(mConfig->server_key);
 		if (!key) {
-			qCritical() << "failed to open" << config->server_key;
+			qCritical() << "failed to open" << mConfig->server_key;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
-				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << config->server_key;
+				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << mConfig->server_key;
 			}
 		}
-		rdpCertificate* cert = freerdp_certificate_new_from_file(config->server_cert);
+		rdpCertificate* cert = freerdp_certificate_new_from_file(mConfig->server_cert);
 		if (!cert) {
-			qCritical() << "failed to open" << config->server_cert;
+			qCritical() << "failed to open" << mConfig->server_cert;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerCertificate, cert, 1)) {
-				qCritical() << "failed to set FreeRDP_RdpServerCertificate from" << config->server_cert;
+				qCritical() << "failed to set FreeRDP_RdpServerCertificate from" << mConfig->server_cert;
 			}
 		}
 	} else {
 		settings->TlsSecurity = FALSE;
-		rdpPrivateKey* key = freerdp_key_new_from_file(config->rdp_key);
+		rdpPrivateKey* key = freerdp_key_new_from_file(mConfig->rdp_key);
 		if (!key) {
-			qCritical() << "failed to open" << config->rdp_key;
+			qCritical() << "failed to open" << mConfig->rdp_key;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
-				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << config->rdp_key;
+				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << mConfig->rdp_key;
 			}
 		}
 	}
@@ -338,6 +420,21 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 }
 
 DisplayMode QFreeRdpPlatform::getDisplayMode() {
-	return config->displayMode;
+	return mConfig->displayMode;
+}
+
+void QFreeRdpPlatform::setBlankCursor()
+{
+	foreach(QFreeRdpPeer *peer, mPeers) {
+		peer->setBlankCursor();
+	}
+}
+
+void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape)
+{
+	foreach(QFreeRdpPeer *peer, mPeers) {
+		peer->setPointer(pointer, newShape);
+	}
+
 }
 

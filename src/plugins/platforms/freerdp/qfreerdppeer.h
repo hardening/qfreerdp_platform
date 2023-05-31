@@ -25,6 +25,8 @@
 #include <memory>
 
 #include <freerdp/peer.h>
+#include <freerdp/pointer.h>
+
 #include <QImage>
 #include <QMap>
 
@@ -37,11 +39,15 @@
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
+class QFreerdpPeerClipboard;
+class QSocketNotifier;
 
 /**
  * @brief a peer connected in RDP to the Qt5 backend
  */
 class QFreeRdpPeer : public QObject {
+	friend class QFreerdpPeerClipboard;
+
     Q_OBJECT
 
 public:
@@ -53,15 +59,21 @@ public:
 
     QSize getGeometry();
 
+    bool setBlankCursor();
+    bool setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
+
 protected:
 	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
+	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);
 
 public slots:
 	void incomingBytes(int sock);
+	void channelTraffic(int sock);
+
 
 protected:
 	/** freerdp callbacks
@@ -78,7 +90,7 @@ protected:
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	/** @} */
 
-
+	void dropSocketNotifier(QSocketNotifier *notifier);
 protected:
 	/** @brief */
 	enum PeerFlags {
@@ -98,6 +110,17 @@ protected:
     bool mSurfaceOutputModeEnabled;
     bool mNsCodecSupported;
     QFreeRdpCompositor mCompositor;
+
+    HANDLE mVcm;
+    QFreerdpPeerClipboard *mClipboard;
+
+	struct CursorCacheItem {
+		UINT16 cacheIndex;
+		UINT64 lastUse;
+	};
+	typedef QMap<Qt::CursorShape, CursorCacheItem> CursorCache;
+	CursorCache mCursorCache;
+
 
 #ifndef NO_XKB_SUPPORT
     struct xkb_context *mXkbContext;

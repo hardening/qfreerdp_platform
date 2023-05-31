@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+ * Copyright © 2023 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -19,36 +19,42 @@
  * CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include <qpa/qplatformintegrationplugin.h>
-#include "qfreerdpplatform.h"
 
+#ifndef QFREERDP_CLIPBOARD_H_
+#define QFREERDP_CLIPBOARD_H_
 
-QT_BEGIN_NAMESPACE
+#include <qpa/qplatformclipboard.h>
+#include <freerdp/server/cliprdr.h>
 
-class QFreeRdpIntegrationPlugin : public QPlatformIntegrationPlugin
-{
-    Q_OBJECT
-    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "qfreerdp.json")
+#include <QMimeData>
+#include <QList>
+
+class QFreerdpPeerClipboard;
+
+/** @brief */
+class QFreeRdpClipboard : public QObject, public QPlatformClipboard {
+	Q_OBJECT
+
 public:
-    QStringList keys() const;
-    QPlatformIntegration *create(const QString&, const QStringList&);
+	QFreeRdpClipboard();
+	~QFreeRdpClipboard() override;
+
+	void initialize();
+
+	QMimeData *mimeData(QClipboard::Mode mode = QClipboard::Clipboard) override;
+	void setMimeData(QMimeData *data, QClipboard::Mode mode = QClipboard::Clipboard) override;
+	bool supportsMode(QClipboard::Mode mode) const override;
+	bool ownsMode(QClipboard::Mode mode) const override;
+
+	void registerPeer(QFreerdpPeerClipboard* peer);
+	void unregisterPeer(QFreerdpPeerClipboard* peer);
+
+	void updateAvailableData(QMimeData *data);
+protected:
+	QMimeData mEmptyData;
+	QMimeData *mAvailableData;
+	QList<QFreerdpPeerClipboard*> mPeers;
 };
 
-QStringList QFreeRdpIntegrationPlugin::keys() const
-{
-    QStringList list;
-    list << "freerdp";
-    return list;
-}
 
-QPlatformIntegration *QFreeRdpIntegrationPlugin::create(const QString& system, const QStringList& paramList)
-{
-    if (system.toLower() == "freerdp")
-        return new QFreeRdpPlatform(paramList);
-
-    return 0;
-}
-
-QT_END_NAMESPACE
-
-#include "main.moc"
+#endif /* QFREERDP_CLIPBOARD_H_ */

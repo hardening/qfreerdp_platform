@@ -38,7 +38,8 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
     mPlatform(platform),
     mBackingStore(0),
     mWinId( WId(globalWinId++) ),
-    mVisible(false)
+    mVisible(false),
+    mSentInitialResize(false)
 {
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
 	qDebug("QFreeRdpWindow ctor(%llu, type=0x%x)", mWinId, window->type());
@@ -61,17 +62,24 @@ void QFreeRdpWindow::setBackingStore(QFreeRdpBackingStore *b) {
 
 
 void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
-    qDebug("QFreeRdpWindow::%s(0x%x)", __func__, (int)state);
-	QPlatformWindow::setWindowState(state);
+    qDebug("QFreeRdpWindow::%s(0x%x)", __func__, (int)state); // << state;
 
-    if(state & Qt::WindowActive)
+    switch(state) {
+    case Qt::WindowActive:
 		mPlatform->mWindowManager->setActiveWindow(this);
-	if(state & Qt::WindowFullScreen) {
+		break;
+    case Qt::WindowMaximized:
+    case Qt::WindowFullScreen: {
 		QRect r = mPlatform->getScreen()->geometry();
 		setGeometry(r);
-		QWindowSystemInterface::handleGeometryChange(window(), r);
-		QWindowSystemInterface::flushWindowSystemEvents();
+		break;
+    }
+    default:
+    	break;
 	}
+
+	QWindowSystemInterface::handleWindowStateChanged(window(), state);
+	QWindowSystemInterface::flushWindowSystemEvents(); // Required for oldState to work on WindowStateChanged
 }
 
 void QFreeRdpWindow::raise() {
@@ -86,9 +94,17 @@ void QFreeRdpWindow::lower() {
 
 void QFreeRdpWindow::setVisible(bool visible) {
     qDebug("QFreeRdpWindow::%s(%llu,visible=%d)", __func__, mWinId, visible);
+	mVisible = visible;
 	QPlatformWindow::setVisible(visible);
 
-	mVisible = visible;
+	if (visible) {
+		if (!mSentInitialResize) {
+			QWindowSystemInterface::handleGeometryChange(window(), geometry());
+			mSentInitialResize = true;
+		}
+		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
+	}
+
 	mPlatform->mWindowManager->repaint(geometry());
 }
 
@@ -105,12 +121,15 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 	QWindowSystemInterface::handleExposeEvent(window(), QRegion(rect));
 }
 
+void QFreeRdpWindow::propagateSizeHints() {
+}
+
 const QImage *QFreeRdpWindow::getContent() {
-	if(!mBackingStore) {
-                qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
+	if (!mBackingStore) {
+		qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
 		return 0;
-        }
-	return (const QImage *)mBackingStore->paintDevice();
+	}
+	return (const QImage*) mBackingStore->paintDevice();
 }
 
 void QFreeRdpWindow::center() {

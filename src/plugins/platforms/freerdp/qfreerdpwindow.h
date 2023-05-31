@@ -47,6 +47,7 @@ public:
     virtual void lower();
     virtual void setVisible(bool visible);
     virtual void setGeometry(const QRect &rect);
+    virtual void propagateSizeHints();
     /** @} */
 
 
@@ -81,6 +82,7 @@ protected:
     QPlatformScreen *mScreen;
     WId mWinId;
     bool mVisible;
+    bool mSentInitialResize;
 };
 
 QT_END_NAMESPACE
