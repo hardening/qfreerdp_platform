@@ -430,10 +430,10 @@ void QFreeRdpPlatform::setBlankCursor()
 	}
 }
 
-void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer)
+void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape)
 {
 	foreach(QFreeRdpPeer *peer, mPeers) {
-		peer->setPointer(pointer);
+		peer->setPointer(pointer, newShape);
 	}
 
 }

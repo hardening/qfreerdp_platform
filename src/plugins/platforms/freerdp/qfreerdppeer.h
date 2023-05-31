@@ -60,7 +60,7 @@ public:
     QSize getGeometry();
 
     bool setBlankCursor();
-    bool setPointer(const POINTER_LARGE_UPDATE *pointer);
+    bool setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
 
 protected:
 	void repaint(const QRegion &rect);
@@ -68,6 +68,7 @@ protected:
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
+	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);
 
 public slots:
 	void incomingBytes(int sock);
@@ -112,6 +113,13 @@ protected:
 
     HANDLE mVcm;
     QFreerdpPeerClipboard *mClipboard;
+
+	struct CursorCacheItem {
+		UINT16 cacheIndex;
+		UINT64 lastUse;
+	};
+	typedef QMap<Qt::CursorShape, CursorCacheItem> CursorCache;
+	CursorCache mCursorCache;
 
 
 #ifndef NO_XKB_SUPPORT

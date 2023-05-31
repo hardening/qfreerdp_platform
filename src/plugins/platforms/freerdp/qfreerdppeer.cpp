@@ -22,6 +22,7 @@
 
 #include <winpr/stream.h>
 #include <winpr/user.h>
+#include <winpr/sysinfo.h>
 
 #include <freerdp/freerdp.h>
 #include <freerdp/codec/rfx.h>
@@ -75,22 +76,28 @@ struct RdpPeerContext {
 
 static BOOL rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context) {
 	// init settings
-	context->settings = client->context->settings;
+	auto settings = client->context->settings;
+	context->settings = settings;
 
 	// init codecs
-	client->context->codecs = codecs_new(client->context);
-	freerdp_client_codecs_prepare(client->context->codecs, FREERDP_CODEC_ALL,
-			client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
+	auto codecs = codecs_new(client->context);
+	client->context->codecs = codecs;
+	freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_ALL, settings->DesktopWidth,
+			settings->DesktopHeight);
 
 	// Planar configuration
-	client->context->codecs->planar->AllowRunLengthEncoding = TRUE; // enable RLE compression
+	// unfortunately we have to recreate the context to enable compression
+	freerdp_bitmap_planar_context_free(codecs->planar);
+	codecs->planar = freerdp_bitmap_planar_context_new(PLANAR_FORMAT_HEADER_RLE, 64, 64);
+	if (!codecs->planar)
+		return FALSE;
 
 	// init NSC encoder
 	context->nsc_context = nsc_context_new();
-	nsc_context_reset(context->nsc_context, client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
-	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_LOSS_LEVEL, client->context->settings->NSCodecColorLossLevel);
-	nsc_context_set_parameters(context->nsc_context, NSC_ALLOW_SUBSAMPLING, client->context->settings->NSCodecAllowSubsampling ? 1 : 0);
-	nsc_context_set_parameters(context->nsc_context, NSC_DYNAMIC_COLOR_FIDELITY, client->context->settings->NSCodecAllowDynamicColorFidelity ? 1 : 0);
+	nsc_context_reset(context->nsc_context, settings->DesktopWidth, settings->DesktopHeight);
+	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_LOSS_LEVEL, settings->NSCodecColorLossLevel);
+	nsc_context_set_parameters(context->nsc_context, NSC_ALLOW_SUBSAMPLING, settings->NSCodecAllowSubsampling ? 1 : 0);
+	nsc_context_set_parameters(context->nsc_context, NSC_DYNAMIC_COLOR_FIDELITY, settings->NSCodecAllowDynamicColorFidelity ? 1 : 0);
 	nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, PIXEL_FORMAT_BGRX32);
 
 	return TRUE;
@@ -485,10 +492,9 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
 	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *peer = peerContext->rdpPeer;
-
-	
 	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
 	QWindow *window = windowManager->getWindowAt(QPoint(x, y));
+
 	if(!window)
 		return TRUE;
 
@@ -1115,10 +1121,51 @@ bool QFreeRdpPeer::setBlankCursor()
 	return pointer->PointerSystem(mClient->context, &system_pointer);
 }
 
-bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer)
+bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::CursorShape newShape)
 {
+	bool isNew;
+	UINT16 cacheIndex = getCursorCacheIndex(newShape, isNew);
 	rdpPointerUpdate* pointer = mClient->context->update->pointer;
-	return pointer->PointerLarge(mClient->context, largePointer);
+	if (isNew) {
+		POINTER_LARGE_UPDATE lpointer = *largePointer;
+		lpointer.cacheIndex = cacheIndex;
+		return pointer->PointerLarge(mClient->context, &lpointer);
+	}
+
+	POINTER_CACHED_UPDATE update;
+	update.cacheIndex = cacheIndex;
+	return pointer->PointerCached(mClient->context, &update);
+}
+
+UINT16 QFreeRdpPeer::getCursorCacheIndex(Qt::CursorShape shape, bool &isNew)
+{
+	auto it = mCursorCache.find(shape);
+	if (it != mCursorCache.end()) {
+		it->lastUse = GetTickCount64();
+		isNew = false;
+		return it->cacheIndex;
+	}
+
+	isNew = true;
+	auto settings = mClient->context->settings;
+	UINT16 ret = mCursorCache.size();
+	if (settings->PointerCacheSize && (mCursorCache.size() == (int)settings->PointerCacheSize)) {
+		auto it = mCursorCache.begin();
+		auto removeIt = mCursorCache.begin();
+
+		it++;
+		for( ; it != mCursorCache.end(); it++) {
+			if (it->lastUse < removeIt->lastUse)
+				removeIt = it;
+		}
+
+		ret = removeIt->cacheIndex;
+		mCursorCache.erase(removeIt);
+	}
+
+	mCursorCache[shape] = {ret, GetTickCount64()};
+
+	return ret;
 }
 
 void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {

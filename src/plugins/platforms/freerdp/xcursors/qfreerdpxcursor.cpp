@@ -156,7 +156,7 @@ void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window) {
 
 		computeMaskAndData(image, (uint32_t *)data, mask);
 
-		mPlatform->setPointer(&msg);
+		mPlatform->setPointer(&msg, newShape);
 	}
 }
 #endif

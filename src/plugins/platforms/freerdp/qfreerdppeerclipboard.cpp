@@ -374,14 +374,24 @@ UINT QFreerdpPeerClipboard::cliprdr_client_format_data_response (CliprdrServerCo
 			<< "len=" << format_data_response->common.dataLen;
 	switch (peerClipboard->mCurrentRetrieveFormat) {
 	case RDP_CLIPBOARD_TEXT:
-		len = strnlen((const char*)format_data_response->requestedFormatData, format_data_response->common.dataLen);
-		str = QString::fromLatin1((const char*)format_data_response->requestedFormatData, len);
-		data->setText(str);
+		if (format_data_response->requestedFormatData) {
+			len = strnlen((const char*)format_data_response->requestedFormatData, format_data_response->common.dataLen);
+			str = QString::fromLatin1((const char*)format_data_response->requestedFormatData, len);
+			data->setText(str);
+		} else {
+			delete data;
+			data = nullptr;
+		}
 		break;
 	case RDP_CLIPBOARD_UNICODE:
-		len = _wcsnlen((const WCHAR*)format_data_response->requestedFormatData, format_data_response->common.dataLen);
-		str = QString::fromUtf16((const char16_t*)format_data_response->requestedFormatData, len);
-		data->setText(str);
+		if (format_data_response->requestedFormatData) {
+			len = _wcsnlen((const WCHAR*)format_data_response->requestedFormatData, format_data_response->common.dataLen);
+			str = QString::fromUtf16((const char16_t*)format_data_response->requestedFormatData, len);
+			data->setText(str);
+		} else {
+			delete data;
+			data = nullptr;
+		}
 		break;
 	case RDP_CLIPBOARD_HTML:
 		str = extractHtmlContent(format_data_response->requestedFormatData, format_data_response->common.dataLen);

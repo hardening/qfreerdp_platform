@@ -123,7 +123,7 @@ public:
 	DisplayMode getDisplayMode();
 
 	void setBlankCursor();
-	void setPointer(const POINTER_LARGE_UPDATE *pointer);
+	void setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
 
 protected:
     QPlatformFontDatabase *mFontDb;
