@@ -1047,8 +1047,7 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 		vk_code |= KBDEXT;
 
 	// get scan code
-	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
-	//for master: quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
+	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
 
 	// check if key is down or up
 	bool isDown = !(flags & KBD_FLAGS_RELEASE);
