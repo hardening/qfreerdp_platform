@@ -66,6 +66,7 @@ protected:
 	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
+	void updateMouseButtonsFromFlags(DWORD flags, bool extended);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
 	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);

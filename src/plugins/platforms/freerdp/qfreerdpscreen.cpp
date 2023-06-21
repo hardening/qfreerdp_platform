@@ -77,12 +77,12 @@ void QFreeRdpScreen::setGeometry(const QRect &geometry) {
 	delete mScreenBits;
 	mGeometry = geometry;
     mScreenBits = new QImage(geometry.width(), geometry.height(), QImage::Format_ARGB32_Premultiplied);
-    mScreenBits->fill(Qt::white);
+    mScreenBits->fill(Qt::green);
 
     QWindowSystemInterface::handleScreenGeometryChange(screen(), mGeometry, mGeometry);
-    mPlatform->mWindowManager->repaint( QRegion(mGeometry) );
-
 	resizeMaximizedWindows();
+
+    mPlatform->mWindowManager->repaint( QRegion(mGeometry) );
 }
 
 

@@ -503,67 +503,24 @@ BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 	Qt::KeyboardModifiers modifiers = Qt::NoModifier;
 
 	QPoint wTopLeft = window->geometry().topLeft();
-	QPoint localCoord(x - wTopLeft.x(), y - wTopLeft.y());
 	QPoint pos(x, y);
+	if (flags & PTR_FLAGS_WHEEL) // in wheel packet coordinates are usually (0,0)
+		pos = peer->mLastMousePos;
+	QPoint localCoord = pos - wTopLeft;
+
+	peer->updateMouseButtonsFromFlags(flags, false);
+
+	QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, peer->mLastButtons, modifiers);
+	peer->mLastMousePos = pos;
 
 	if (flags & PTR_FLAGS_WHEEL) {
-		pos = peer->mLastMousePos;
-		localCoord = pos - wTopLeft;
-		wheelDelta = flags & 0xff;
+		wheelDelta = (flags & 0xff);
 		if (flags & PTR_FLAGS_WHEEL_NEGATIVE)
 			wheelDelta = -wheelDelta;
 
 		QPoint angleDelta;
 		angleDelta.setY(wheelDelta);
-		QWindowSystemInterface::handleWheelEvent(window, localCoord, pos,
-				QPoint(), angleDelta, modifiers);
-	} else {
-		if (peer->mLastMousePos != pos) {
-			// first move the mouse
-			QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, peer->mLastButtons, Qt::MouseButton::NoButton,
-					QEvent::Type::MouseMove, modifiers);
-			peer->mLastMousePos = pos;
-		}
-		// then click each button if necessary
-		for (int i = 0; i < 3; i++) {
-			int button;
-			Qt::MouseButton qtButton;
-			switch (i) {
-				case 0:
-					button = PTR_FLAGS_BUTTON1;
-					qtButton = Qt::MouseButton::LeftButton;
-					break;
-				case 1:
-					button = PTR_FLAGS_BUTTON2;
-					qtButton = Qt::MouseButton::RightButton;
-					break;
-				case 2:
-					button = PTR_FLAGS_BUTTON3;
-					qtButton = Qt::MouseButton::MiddleButton;
-					break;
-				default: 
-					qFatal("unreachable: fourth button clicked");
-			}
-			if (flags & button) {
-				QEvent::Type eventtype;
-				if (flags & PTR_FLAGS_DOWN) {
-					peer->mLastButtons |= qtButton;
-					eventtype = QEvent::MouseButtonPress;
-				} else {
-					peer->mLastButtons &= ~qtButton;
-					eventtype = QEvent::MouseButtonRelease;
-				}
-				QWindowSystemInterface::handleMouseEvent(window,
-						localCoord,
-						pos,
-						peer->mLastButtons,
-						qtButton,
-						eventtype,
-						modifiers
-				);
-				
-			}
-		}		
+		QWindowSystemInterface::handleWheelEvent(window, localCoord, pos, QPoint(), angleDelta);
 	}
 
 	if(peer->mLastButtons)
@@ -820,12 +777,14 @@ void QFreeRdpPeer::init_display(freerdp_peer* client) {
 	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
 	//TODO: see the user's monitor layout
 	QRect currentGeometry = screen->geometry();
+
+	mCompositor.reset(settings->DesktopWidth, settings->DesktopHeight);
+
 	QRect peerGeometry(0, 0, settings->DesktopWidth, settings->DesktopHeight);
 	if(currentGeometry != peerGeometry)
 		screen->setGeometry(peerGeometry);
 	rdpPeer->mFlags |= PEER_ACTIVATED;
 
-	mCompositor.reset(settings->DesktopWidth, settings->DesktopHeight);
 
 	// default : show mouse
 	POINTER_SYSTEM_UPDATE pointer_system;
@@ -1022,6 +981,26 @@ void QFreeRdpPeer::repaint_raw(const QRegion &region) {
 	}
 }
 
+void QFreeRdpPeer::updateMouseButtonsFromFlags(DWORD flags, bool extended) {
+	Qt::MouseButtons buttons = Qt::NoButton;
+
+	if(!extended) {
+		if (flags & PTR_FLAGS_BUTTON1)
+			buttons |= Qt::LeftButton;
+		else if (flags & PTR_FLAGS_BUTTON2)
+			buttons |= Qt::RightButton;
+		else if (flags & PTR_FLAGS_BUTTON3)
+			buttons |= Qt::MiddleButton;
+	} else {
+		qWarning("extended mouse button not handled");
+	}
+
+	if (flags & PTR_FLAGS_DOWN)
+		mLastButtons |= buttons;
+	else
+		mLastButtons &= (~buttons);
+}
+
 
 void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock) {
 #ifndef NO_XKB_SUPPORT
@@ -1069,6 +1048,7 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 
 	// get scan code
 	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
+	//for master: quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
 
 	// check if key is down or up
 	bool isDown = !(flags & KBD_FLAGS_RELEASE);

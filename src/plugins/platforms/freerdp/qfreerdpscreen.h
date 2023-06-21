@@ -50,7 +50,7 @@ public:
     QImage *getScreenBits() { return mScreenBits; }
 public slots:
     void setGeometry(const QRect &geometry);
-protected:
+
 protected:
     QRect mGeometry;
     QFreeRdpPlatform *mPlatform;
