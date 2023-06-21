@@ -143,14 +143,8 @@ void QFreeRdpWindow::center() {
 	this->setGeometry(QRect(x, y, windowGeometry.width(), windowGeometry.height()));
 }
 
+
 #if 0
-QMargins QFreeRdpWindow::frameMargins() const
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    return QPlatformWindow::frameMargins();
-}
-
-
 WId QFreeRdpWindow::winId() const
 {
     qDebug() << "QFreeRdpWindow::" << __func__ << "()";

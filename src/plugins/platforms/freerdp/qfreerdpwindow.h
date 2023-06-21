@@ -60,8 +60,6 @@ public:
     void center();
 
 #if 0
-    QMargins frameMargins() const;
-
     void setWindowTitle(const QString &title);
     void propagateSizeHints();
 

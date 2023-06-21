@@ -31,7 +31,7 @@
 #ifdef NDEBUG
 #define DEBUG false
 #else
-#define DEBUG true
+#define DEBUG false
 #endif
 
 QT_BEGIN_NAMESPACE
@@ -57,6 +57,7 @@ void QFreeRdpCompositor::reset(size_t width, size_t height) {
 		QSize(width, height),
 		QImage::Format_ARGB32_Premultiplied
 	);
+	mShadowImage->fill(Qt::black);
 }
 
 QRegion QFreeRdpCompositor::qtToRdpDirtyRegion(const QRegion &region) {

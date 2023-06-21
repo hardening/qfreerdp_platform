@@ -76,31 +76,8 @@ void QFreeRdpWindowManager::lower(QFreeRdpWindow *window) {
 }
 
 void qimage_bitblt(const QRect &srcRect, const QImage *srcImg, const QPoint &dst, QImage *destImg) {
-
-	if (srcImg->sizeInBytes() == 0) {
-		// no bytes in source image
-		return;
-	}
-
-	int srcStride = srcImg->bytesPerLine();
-	QPoint topLeft = srcRect.topLeft();
-	const uchar *srcPtr = srcImg->bits() + (topLeft.y() * srcStride) + (topLeft.x() * 4);
-
-	// qDebug("%s: srcStride=%d srcRectLeft=%d srcRectTop=%d srcRectWidth=%d srcRectHeight=%d", __func__, srcStride,
-	// 		srcRect.left(), srcRect.top(), srcRect.width(), srcRect.height());
-	// qDebug("%s: src image bits = %d", __func__, srcImg->byteCount());
-
-	int dstStride = destImg->bytesPerLine();
-	uchar *destPtr = destImg->bits() + (dst.y() * dstStride) + (dst.x() * 4);
-
-	// qDebug("%s: dstStride=%d dstX=%d dstY=%d", __func__, dstStride, dst.x(), dst.y());
-	// qDebug("%s: dst image bits = %d", __func__, destImg->byteCount());
-
-	for(int h = 0; h < srcRect.height(); h++) {
-		memcpy(destPtr, srcPtr, srcRect.width() * 4);
-		srcPtr += srcStride;
-		destPtr += dstStride;
-	}
+	QPainter painter(destImg);
+	painter.drawImage(dst, *srcImg, srcRect);
 }
 
 void qimage_fillrect(const QRect &rect, QImage *dest, quint32 color) {
@@ -111,7 +88,7 @@ void qimage_fillrect(const QRect &rect, QImage *dest, quint32 color) {
 		return;
 	}
 
-	for(int h = rect.top(); h < rect.bottom(); h++) {
+	for(int h = rect.top(); h <= rect.bottom(); h++) {
 		quint32* begin = ((quint32*)dest->scanLine(h)) + rect.left();
 		std::fill(begin, begin+rect.width(), color);
 	}
@@ -144,7 +121,6 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 		for (const QRect& repaintRect : inter) {
 			QPoint topLeft = windowRect.topLeft();
 			QRect localCoord = repaintRect.translated(-topLeft);
-
 
 			assert(window->getContent() != NULL);
 			assert(dest != NULL);
