@@ -359,7 +359,7 @@ void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *ba
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {
 	foreach(QFreeRdpPeer *peer, mPeers) {
-		peer->repaintWithCompositor(region);
+		peer->repaint(region);
 	}
 }
 
@@ -369,7 +369,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 		settings->TLSMinVersion = 0x0303; //TLS1.2 number registered to the IANA
 		rdpPrivateKey* key = freerdp_key_new_from_file(mConfig->server_key);
 		if (!key) {
-			qCritical() << "failed to open" << mConfig->server_key;
+			qCritical() << "failed to open private key" << mConfig->server_key;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
 				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << mConfig->server_key;
@@ -377,7 +377,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 		}
 		rdpCertificate* cert = freerdp_certificate_new_from_file(mConfig->server_cert);
 		if (!cert) {
-			qCritical() << "failed to open" << mConfig->server_cert;
+			qCritical() << "failed to open cert" << mConfig->server_cert;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerCertificate, cert, 1)) {
 				qCritical() << "failed to set FreeRDP_RdpServerCertificate from" << mConfig->server_cert;
@@ -387,7 +387,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 		settings->TlsSecurity = FALSE;
 		rdpPrivateKey* key = freerdp_key_new_from_file(mConfig->rdp_key);
 		if (!key) {
-			qCritical() << "failed to open" << mConfig->rdp_key;
+			qCritical() << "failed to open RDP key" << mConfig->rdp_key;
 		} else {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
 				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << mConfig->rdp_key;

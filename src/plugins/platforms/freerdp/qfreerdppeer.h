@@ -26,6 +26,7 @@
 
 #include <freerdp/peer.h>
 #include <freerdp/pointer.h>
+#include <freerdp/server/rdpgfx.h>
 
 #include <QImage>
 #include <QMap>
@@ -47,6 +48,7 @@ class QSocketNotifier;
  */
 class QFreeRdpPeer : public QObject {
 	friend class QFreerdpPeerClipboard;
+	friend class QFreeRdpPlatform;
 
     Q_OBJECT
 
@@ -55,7 +57,6 @@ public:
     ~QFreeRdpPeer();
 
     bool init();
-    void repaintWithCompositor(const QRegion &rect);
 
     QSize getGeometry();
 
@@ -65,11 +66,17 @@ public:
 protected:
 	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
+	bool repaint_egfx(const QRegion &rect, bool compress);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateMouseButtonsFromFlags(DWORD flags, bool extended);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
 	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);
+	bool initializeChannels();
+
+	bool frameAck(UINT32 frameId);
+	bool initGfxDisplay();
+	bool egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise, UINT32 version, UINT &rc);
 
 public slots:
 	void incomingBytes(int sock);
@@ -77,11 +84,11 @@ public slots:
 
 
 protected:
-	/** freerdp callbacks
+	/** FreeRDP callbacks
 	 * @{ */
 	static BOOL xf_peer_capabilities(freerdp_peer* client);
-	static BOOL xf_peer_post_connect(freerdp_peer *client);
 	static BOOL xf_peer_activate(freerdp_peer *client);
+	static BOOL xf_peer_post_connect(freerdp_peer *client);
 	static BOOL xf_mouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
 	static BOOL xf_extendedMouseEvent(rdpInput *input, UINT16 flags, UINT16 x, UINT16 y);
 	static BOOL xf_input_synchronize_event(rdpInput *input, UINT32 flags);
@@ -89,14 +96,20 @@ protected:
 	static BOOL xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
 	static BOOL xf_refresh_rect(rdpContext *context, BYTE count, const RECTANGLE_16* areas);
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
+	static BOOL xf_surface_frame_acknowledge(rdpContext* context, UINT32 frameId);
+
+	static UINT rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise);
+	static UINT rdpgfx_frame_acknowledge(RdpgfxServerContext* context, const RDPGFX_FRAME_ACKNOWLEDGE_PDU* frameAcknowledge);
 	/** @} */
 
 	void dropSocketNotifier(QSocketNotifier *notifier);
+
 protected:
-	/** @brief */
+	/** @brief flags about a connected RDP peer */
 	enum PeerFlags {
 		PEER_ACTIVATED = 0x00001,
-		PEER_OUTPUT_DISABLED = 0x0002
+		PEER_OUTPUT_DISABLED = 0x0002,
+		PEER_WAITING_DYNVC = 0x0004,
 	};
 	QFlags<PeerFlags> mFlags;
 
@@ -108,13 +121,27 @@ protected:
     Qt::MouseButtons mLastButtons;
     quint32 mKeyTime;
 
+    /** @brief how to render screen content updates */
+    enum RenderMode {
+		RENDER_BITMAP_UPDATES,
+		RENDER_EGFX,
+    };
+
     bool mSurfaceOutputModeEnabled;
     bool mNsCodecSupported;
     QFreeRdpCompositor mCompositor;
+    RenderMode mRenderMode;
+    QRegion mDirtyRegion;
 
     HANDLE mVcm;
     QFreerdpPeerClipboard *mClipboard;
+    RdpgfxServerContext* mRdpgfx;
+    bool mGfxOpened;
+    bool mSurfaceCreated;
+    UINT16 mSurfaceId;
+    UINT32 mFrameId;
 
+    /** @brief a cursor cache entry */
 	struct CursorCacheItem {
 		UINT16 cacheIndex;
 		UINT64 lastUse;
