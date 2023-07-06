@@ -29,6 +29,7 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
 class QFreeRdpBackingStore;
+//class WmWidget;
 
 class QFreeRdpWindow : public QPlatformWindow
 {
@@ -42,35 +43,24 @@ public:
 
     /** @overload QPlatformWindow
      * @{*/
+    virtual WId winId() const { return mWinId; }
     virtual void setWindowState(Qt::WindowState state);
     virtual void raise();
     virtual void lower();
     virtual void setVisible(bool visible);
     virtual void setGeometry(const QRect &rect);
     virtual void propagateSizeHints();
+    virtual QMargins frameMargins() const;
+    virtual void setWindowTitle(const QString &title);
     /** @} */
 
+    virtual QRect outerWindowGeometry() const;
 
     bool isVisible() const { return mVisible; }
 
     const QImage *getContent();
-
-    WId winId() const { return mWinId; }
-
+    //void drawDecorations();
     void center();
-
-#if 0
-    void setWindowTitle(const QString &title);
-    void propagateSizeHints();
-
-   public slots:
-	void onDestroy(int winId);
-    void onActivated(int winId);
-    void onSetGeometry(int winId, int x, int y, int width, int height);
-    void onKeyEvent(int winId, int type, int code, int modifiers, const QString &text);
-    void onMouseEvent(int winId, int localX, int localY, int globalX, int globalY, int buttons, int modifiers);
-    void onMouseWheel(int winId, int localX, int localY, int globalX, int globalY, int delta, int modifiers);
-#endif
 
 public slots:
 
@@ -81,6 +71,7 @@ protected:
     WId mWinId;
     bool mVisible;
     bool mSentInitialResize;
+    bool mDecorate;
 };
 
 QT_END_NAMESPACE

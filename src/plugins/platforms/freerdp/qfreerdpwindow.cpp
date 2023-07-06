@@ -27,6 +27,7 @@
 #include "qfreerdpwindowmanager.h"
 
 #include <QtCore/QtDebug>
+#include <QPainter>
 #include <qpa/qwindowsysteminterface.h>
 #include <qpa/qplatformwindow_p.h>
 
@@ -39,14 +40,16 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
     mBackingStore(0),
     mWinId( WId(globalWinId++) ),
     mVisible(false),
-    mSentInitialResize(false)
+    mSentInitialResize(false),
+	mDecorate(false)
 {
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
-	qDebug("QFreeRdpWindow ctor(%llu, type=0x%x)", mWinId, window->type());
+	qDebug() << "QFreeRdpWindow ctor(" << mWinId << ", type=" << window->type() << ")";
 
 	// adapt window position
 	if (window->type() == Qt::Dialog) {
 		this->center();
+		mDecorate = true;
 	}
 }
 
@@ -62,11 +65,11 @@ void QFreeRdpWindow::setBackingStore(QFreeRdpBackingStore *b) {
 
 
 void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
-    qDebug("QFreeRdpWindow::%s(0x%x)", __func__, (int)state); // << state;
+    qDebug("QFreeRdpWindow::setWindowState(0x%x)", __func__, (int)state); // << state;
 
     switch(state) {
     case Qt::WindowActive:
-		mPlatform->mWindowManager->setActiveWindow(this);
+		mPlatform->mWindowManager->setFocusWindow(this);
 		break;
     case Qt::WindowMaximized:
     case Qt::WindowFullScreen: {
@@ -124,6 +127,73 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 void QFreeRdpWindow::propagateSizeHints() {
 }
 
+#define TOP_BAR_SIZE 30
+#define BORDERS_SIZE 2
+#define BORDER_COLOR Qt::black
+#define TITLE_COLOR Qt::white
+
+QMargins QFreeRdpWindow::frameMargins() const
+{
+	switch (window()->type()) {
+	case Qt::Dialog:
+		return QMargins(BORDERS_SIZE, TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE);
+	default:
+		return QMargins();
+	}
+}
+
+void QFreeRdpWindow::setWindowTitle(const QString &title)
+{
+	QPlatformWindow::setWindowTitle(title);
+}
+
+QRect QFreeRdpWindow::outerWindowGeometry()const
+{
+	QRect geometry = windowGeometry();
+	QMargins m = frameMargins();
+
+	return geometry.adjusted(-m.left(), -m.top(), m.right(), m.bottom());
+}
+
+#if 0
+WmWidget *QFreeRdpWindow::decorations() const {
+	return mDecorations;
+}
+#endif
+
+#if 0
+void QFreeRdpWindow::drawDecorations() {
+	QRect decoGeom = outerWindowGeometry();
+	decoGeom = QRect(0, 0, decoGeom.width(), decoGeom.height());
+	if (!mBorders)
+		mBorders = new QImage(decoGeom.size(), QImage::Format_ARGB32_Premultiplied);
+
+	QString title = window()->title();
+	QPainter painter(mBorders);
+
+	painter.fillRect(0, 0, decoGeom.width(), decoGeom.height(), Qt::black);
+
+	QFont font("times", 15);
+	QFontMetrics fm(font);
+
+	painter.setFont(font);
+	painter.setPen(TITLE_COLOR);
+	painter.drawText(QPoint((decoGeom.width() - fm.horizontalAdvance(title)) / 2, 5 + fm.height() / 2), title);
+	painter.drawLine(QPoint(0, TOP_BAR_SIZE-1), QPoint(decoGeom.width()-1, TOP_BAR_SIZE-1));
+	mBordersDirty = false;
+
+	auto closeIcons = mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON);
+	const QImage *closeIcon = closeIcons->normalIcon;
+
+	mCloseButtonArea = QRect(QPoint(decoGeom.width() - closeIcon->width() - 5, 5), closeIcon->size());
+	painter.drawImage(mCloseButtonArea.topLeft(), *closeIcon);
+
+	static int counter = 0;
+	QString destFile = QString("/tmp/borders_%1_%2.png").arg(mWinId).arg(counter++);
+	mBorders->save(destFile, "PNG", 100);
+}
+#endif
+
 const QImage *QFreeRdpWindow::getContent() {
 	if (!mBackingStore) {
 		qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
@@ -144,75 +214,5 @@ void QFreeRdpWindow::center() {
 }
 
 
-#if 0
-WId QFreeRdpWindow::winId() const
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    return static_cast<WId>(mWinId);
-}
-
-void QFreeRdpWindow::setWindowTitle(const QString & /*title*/)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-}
-
-
-void QFreeRdpWindow::propagateSizeHints() {
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-}
-
-void QFreeRdpWindow::onDestroy(int winId)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        QWindowSystemInterface::handleCloseEvent(window());
-    }
-}
-
-void QFreeRdpWindow::onActivated(int winId)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        QWindowSystemInterface::handleWindowActivated(window());
-    }
-}
-
-void QFreeRdpWindow::onSetGeometry(int winId, int x, int y, int width, int height)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        const QRect rect(x, y, width, height);
-        QPlatformWindow::setGeometry(rect);
-        QWindowSystemInterface::handleGeometryChange(window(), rect);
-    }
-}
-
-void QFreeRdpWindow::onKeyEvent(int winId, int type, int code, int modifiers, const QString &text)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        QWindowSystemInterface::handleKeyEvent(window(), QEvent::Type(type), code, Qt::KeyboardModifiers(modifiers), text);
-    }
-}
-
-void QFreeRdpWindow::onMouseEvent(int winId, int localX, int localY, int globalX, int globalY, int buttons, int modifiers)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        QWindowSystemInterface::handleMouseEvent(window(), QPoint(localX, localY), QPoint(globalX, globalY),
-                                                 Qt::MouseButtons(buttons), Qt::KeyboardModifiers(modifiers));
-    }
-}
-
-void QFreeRdpWindow::onMouseWheel(int winId, int localX, int localY, int globalX, int globalY, int delta, int modifiers)
-{
-    qDebug() << "QFreeRdpWindow::" << __func__ << "()";
-    if (winId == mWinId) {
-        delta *= 120;
-        QWindowSystemInterface::handleWheelEvent(window(), QPoint(localX, localY), QPoint(globalX, globalY),
-                                                 delta, Qt::Vertical, Qt::KeyboardModifiers(modifiers));
-    }
-}
-#endif
 
 QT_END_NAMESPACE

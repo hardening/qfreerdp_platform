@@ -30,9 +30,11 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpWindow;
 class QFreeRdpPlatform;
+//class WmWidget;
+
 
 /**
- *
+ * @brief component handling windows (placement, decorations, events)
  */
 class QFreeRdpWindowManager {
 public:
@@ -52,21 +54,27 @@ public:
 	 * @param pos the position
 	 * @return the computed window, NULL otherwise
 	 */
-	QWindow *getWindowAt(const QPoint pos) const;
+	QFreeRdpWindow *getWindowAt(const QPoint pos) const;
 
-	void setActiveWindow(QFreeRdpWindow *w) {  mActiveWindow = w; }
+	void setFocusWindow(QFreeRdpWindow *w);
 
-	QFreeRdpWindow *getActiveWindow() const { return mActiveWindow; }
+	QFreeRdpWindow *getFocusWindow() const { return mFocusWindow; }
 
-	void handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, QEvent::Type eventtype);
+	bool handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons);
+	bool handleWheelEvent(const QPoint &pos, int wheelDelta);
 
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
-        QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
+    QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
+
+
 protected:
 	QFreeRdpPlatform *mPlatform;
 	QFreeRdpWindowList mWindows;
-	QFreeRdpWindow *mActiveWindow;
+	QFreeRdpWindow *mFocusWindow;
 	QWindow *mEnteredWindow;
+	//WmWidget *mEnteredWidget;
+	int mDecoratedWindows;
+	bool mDoDecorate;
 };
 
 
