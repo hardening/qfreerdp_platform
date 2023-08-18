@@ -25,6 +25,7 @@
 #include <QList>
 #include <QRect>
 #include <QRegion>
+#include <QTimer>
 
 QT_BEGIN_NAMESPACE
 
@@ -36,9 +37,12 @@ class QFreeRdpPlatform;
 /**
  * @brief component handling windows (placement, decorations, events)
  */
-class QFreeRdpWindowManager {
+class QFreeRdpWindowManager : public QObject {
+	Q_OBJECT
 public:
-	QFreeRdpWindowManager(QFreeRdpPlatform *platform);
+	QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps);
+
+	void initialize();
 
 	void addWindow(QFreeRdpWindow *window);
 
@@ -47,6 +51,8 @@ public:
 	void raise(QFreeRdpWindow *window);
 
 	void lower(QFreeRdpWindow *window);
+
+	void pushDirtyArea(const QRegion &region);
 
 	void repaint(const QRegion &region);
 
@@ -66,6 +72,8 @@ public:
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
     QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
 
+protected slots:
+	void onGenerateFrame();
 
 protected:
 	QFreeRdpPlatform *mPlatform;
@@ -75,6 +83,10 @@ protected:
 	//WmWidget *mEnteredWidget;
 	int mDecoratedWindows;
 	bool mDoDecorate;
+	int mFps;
+
+	QTimer mFrameTimer;
+	QRegion mDirtyRegion;
 };
 
 

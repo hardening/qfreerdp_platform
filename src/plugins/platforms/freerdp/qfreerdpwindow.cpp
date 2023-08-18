@@ -108,7 +108,7 @@ void QFreeRdpWindow::setVisible(bool visible) {
 		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
 	}
 
-	mPlatform->mWindowManager->repaint(geometry());
+	mPlatform->mWindowManager->pushDirtyArea(geometry());
 }
 
 void QFreeRdpWindow::setGeometry(const QRect &rect) {
@@ -118,7 +118,7 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 
 	QPlatformWindow::setGeometry(rect);
 	updateRegion += rect;
-	mPlatform->mWindowManager->repaint(updateRegion);
+	mPlatform->mWindowManager->pushDirtyArea(updateRegion);
 
 	QWindowSystemInterface::handleGeometryChange(window(), rect);
 	QWindowSystemInterface::handleExposeEvent(window(), QRegion(rect));
