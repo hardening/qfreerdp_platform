@@ -24,7 +24,7 @@
 #include "qfreerdpwindowmanager.h"
 #include "qfreerdpscreen.h"
 #include "qfreerdpwindow.h"
-#include "qfreerdpwmwidgets.h"
+//#include "qfreerdpwmwidgets.h"
 
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QRegion>
