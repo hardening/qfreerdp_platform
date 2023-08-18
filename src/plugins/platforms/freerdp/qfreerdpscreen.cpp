@@ -82,7 +82,7 @@ void QFreeRdpScreen::setGeometry(const QRect &geometry) {
     QWindowSystemInterface::handleScreenGeometryChange(screen(), mGeometry, mGeometry);
 	resizeMaximizedWindows();
 
-    mPlatform->mWindowManager->repaint( QRegion(mGeometry) );
+    mPlatform->mWindowManager->pushDirtyArea(mGeometry);
 }
 
 

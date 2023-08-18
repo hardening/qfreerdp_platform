@@ -36,14 +36,20 @@
 QT_BEGIN_NAMESPACE
 
 
-QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform)
+QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps)
 : mPlatform(platform)
 , mFocusWindow(0)
 , mEnteredWindow(0)
 //, mEnteredWidget(0)
 , mDecoratedWindows(0)
 , mDoDecorate(false)
+, mFps(fps)
 {
+	connect(&mFrameTimer, SIGNAL(timeout()), this, SLOT(onGenerateFrame()));
+}
+
+void QFreeRdpWindowManager::initialize() {
+	mFrameTimer.start((int)(1000 / mFps));
 }
 
 
@@ -75,7 +81,7 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 	}
 
 	mDoDecorate = decorate;
-	repaint(dirtyRegion);
+	mDirtyRegion += dirtyRegion;
 }
 
 void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
@@ -98,7 +104,7 @@ void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
 	}
 	mDoDecorate = decorate;
 
-	repaint(dirtyRegion);
+	mDirtyRegion += dirtyRegion;
 }
 
 void QFreeRdpWindowManager::raise(QFreeRdpWindow *window) {
@@ -107,7 +113,7 @@ void QFreeRdpWindowManager::raise(QFreeRdpWindow *window) {
 
 	mWindows.push_front(window);
 	if(window->isExposed()) {
-		repaint(window->geometry());
+		mDirtyRegion += window->outerWindowGeometry();
 	}
 }
 
@@ -117,7 +123,7 @@ void QFreeRdpWindowManager::lower(QFreeRdpWindow *window) {
 
 	mWindows.push_back(window);
 	if(window->isExposed())
-		repaint(window->geometry());
+		mDirtyRegion += window->outerWindowGeometry();
 }
 
 void qimage_bitblt(const QRect &srcRect, const QImage *srcImg, const QPoint &dst, QImage *destImg) {
@@ -139,6 +145,9 @@ void qimage_fillrect(const QRect &rect, QImage *dest, quint32 color) {
 	}
 }
 
+void QFreeRdpWindowManager::pushDirtyArea(const QRegion &region) {
+	mDirtyRegion += region;
+}
 
 void QFreeRdpWindowManager::repaint(const QRegion &region) {
 	QFreeRdpScreen *screen = mPlatform->getScreen();
@@ -178,6 +187,13 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 	}
 
 	mPlatform->repaint(dirtyRegion);
+}
+
+void QFreeRdpWindowManager::onGenerateFrame() {
+	if (!mDirtyRegion.isEmpty()) {
+		repaint(mDirtyRegion);
+		mDirtyRegion = QRegion();
+	}
 }
 
 QFreeRdpWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {

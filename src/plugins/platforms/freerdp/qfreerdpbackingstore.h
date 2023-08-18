@@ -44,20 +44,9 @@ public:
 
     void resize(const QSize &size, const QRegion &staticContents);
 
-#if 0
-    bool scroll(const QRegion &area, int dx, int dy);
-#endif
-
-    void beginPaint(const QRegion &region);
-    void endPaint();
-/*public slots:
-    void onFlush();*/
 
 protected:
-    void flush(const QRect &rect);
-
     QImage mImage;
-    QRegion mDirtyRegion;
     QFreeRdpPlatform *mPlatform;
 };
 

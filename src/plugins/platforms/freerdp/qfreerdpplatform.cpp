@@ -74,6 +74,7 @@ struct QFreeRdpPlatformConfig {
 	char *server_key;
 	char *rdp_key;
 	bool tls_enabled;
+	int fps;
 
 	QSize screenSz;
 	DisplayMode displayMode;
@@ -85,6 +86,7 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	server_key( strdup(DEFAULT_KEY_FILE) ),
 	rdp_key( strdup(DEFAULT_KEY_FILE) ),
 	tls_enabled(true),
+	fps(24),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT)
 {
@@ -117,6 +119,12 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			port = subVal.toInt(&ok);
 			if(!ok) {
 				qWarning() << "invalid port" << subVal;
+			}
+		} else if(param.startsWith(QLatin1String("fps="))) {
+			subVal = param.mid(strlen("fps="));
+			fps = subVal.toInt(&ok);
+			if(!ok || (fps <= 0) || (fps > 100)) {
+				qWarning() << "invalid fps value" << subVal;
 			}
 		} else if(param.startsWith(QLatin1String("socket="))) {
 			subVal = param.mid(strlen("socket="));
@@ -259,7 +267,7 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 , mClipboard(new QFreeRdpClipboard())
 , mConfig(new QFreeRdpPlatformConfig(paramList))
 , mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
-, mWindowManager(new QFreeRdpWindowManager(this))
+, mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
 {
 	mListener->initialize();
@@ -328,6 +336,7 @@ QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
 void QFreeRdpPlatform::initialize() {
 	// create Input Context Plugin
 	mInputContext.reset(QPlatformInputContextFactory::create());
+	mWindowManager->initialize();
 }
 
 QPlatformInputContext *QFreeRdpPlatform::inputContext() const {
