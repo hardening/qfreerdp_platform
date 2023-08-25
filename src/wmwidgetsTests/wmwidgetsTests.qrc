@@ -1,0 +1,5 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/wmwidgetsTests">
+    <file alias="sample-icon.png">sample.png</file>
+</qresource>
+</RCC>

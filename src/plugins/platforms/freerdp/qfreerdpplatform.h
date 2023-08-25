@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -49,6 +49,19 @@ enum DisplayMode {
 	LEGACY = 1,
 	AUTODETECT = 2,
 	OPTIMIZE = 3
+};
+
+/** @brief */
+typedef enum {
+	ICON_RESOURCE_CLOSE_BUTTON
+} IconResourceType;
+
+/** @brief image resources associated with an icon button*/
+struct IconResource {
+	~IconResource();
+
+	QImage *normalIcon;
+	QImage *overIcon;
 };
 
 /**
@@ -125,6 +138,11 @@ public:
 	void setBlankCursor();
 	void setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
 
+	const IconResource *getIconResource(IconResourceType rtype);
+
+protected:
+	bool loadResources();
+
 protected:
     QPlatformFontDatabase *mFontDb;
     QAbstractEventDispatcher *mEventDispatcher;
@@ -137,6 +155,9 @@ protected:
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;
 	QList<QFreeRdpPeer *> mPeers;
+	bool mResourcesLoaded;
+	QMap<IconResourceType, IconResource*> mResources;
+
 };
 QT_END_NAMESPACE
 

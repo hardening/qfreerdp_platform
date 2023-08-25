@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -269,6 +269,7 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 , mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
 , mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
+, mResourcesLoaded(false)
 {
 	mListener->initialize();
 
@@ -288,6 +289,9 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
+	qDebug() << "QFreeRdpPlatform::createPlatformWindow(modality=" << window->modality()
+			<< " flags=" << window->flags() << ")";
+
 	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
 	mWindowManager->addWindow(ret);
 	return ret;
@@ -444,6 +448,44 @@ void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::Curso
 	foreach(QFreeRdpPeer *peer, mPeers) {
 		peer->setPointer(pointer, newShape);
 	}
+}
 
+IconResource::~IconResource() {
+	delete normalIcon;
+	delete overIcon;
+}
+
+bool QFreeRdpPlatform::loadResources() {
+	struct ResItem {
+		IconResourceType rtype;
+		const char *normal;
+		const char *hover;
+	};
+
+	ResItem items[] = {
+		{ICON_RESOURCE_CLOSE_BUTTON, ":/qfreerdp/window-close.png", ":/qfreerdp/window-close#hover.png" }
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(items); i++) {
+		auto item = new IconResource();
+		item->normalIcon = new QImage(items[i].normal, "PNG");
+		item->overIcon = new QImage(items[i].hover, "PNG");
+
+		mResources[items[i].rtype] = item;
+	}
+
+	mResourcesLoaded = true;
+	return true;
+}
+
+const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
+	if (!mResourcesLoaded && !loadResources())
+		return nullptr;
+
+	auto it = mResources.find(rtype);
+	if (it == mResources.end())
+		return nullptr;
+
+	return *it;
 }
 

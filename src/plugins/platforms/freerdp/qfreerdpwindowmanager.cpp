@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -24,7 +24,7 @@
 #include "qfreerdpwindowmanager.h"
 #include "qfreerdpscreen.h"
 #include "qfreerdpwindow.h"
-//#include "qfreerdpwmwidgets.h"
+#include "qfreerdpwmwidgets.h"
 
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QRegion>
@@ -40,7 +40,7 @@ QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps
 : mPlatform(platform)
 , mFocusWindow(0)
 , mEnteredWindow(0)
-//, mEnteredWidget(0)
+, mEnteredWidget(0)
 , mDecoratedWindows(0)
 , mDoDecorate(false)
 , mFps(fps)
@@ -51,7 +51,6 @@ QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps
 void QFreeRdpWindowManager::initialize() {
 	mFrameTimer.start((int)(1000 / mFps));
 }
-
 
 static bool isDecorableWindow(QWindow *window) {
 	switch(window->type()) {
@@ -160,13 +159,31 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 
 	QRegion dirtyRegion = toRepaint;
 
+	qDebug() << "dirtyRegion=" << dirtyRegion;
+
 	foreach(QFreeRdpWindow *window, mWindows) {
-//		qDebug("%s: window=%llu isVisible=%d", __func__, window->winId(), window->isVisible());
 		if(!window->isVisible())
 			continue;
 
-		const QRect &windowRect = window->geometry();
+		QRect windowRect = window->geometry();
 
+		/* first draw the decorations if any */
+		WmWindowDecoration *decorations = window->decorations();
+		if (decorations) {
+			QRegion decoRegion = window->decorationGeometry();
+			QRegion decoRepaint = toRepaint.intersected(decoRegion);
+
+			toRepaint -= decoRepaint;
+
+			if (!decoRepaint.isEmpty()) {
+				//qDebug() << "decoRepaint region=" << decoRepaint;
+
+				QPainter painter(dest);
+				decorations->repaint(painter, decoRepaint);
+			}
+		}
+
+		/*  then draw the window content itself	 */
 //		qDebug("%s: window=%llu windowRectLeft=%d windowRectTop=%d windowRectWidth=%d windowRectHeight=%d", __func__, window->winId(),
 //				windowRect.left(), windowRect.top(), windowRect.width(), windowRect.height());
 		QRegion inter = toRepaint.intersected(windowRect);
@@ -174,9 +191,9 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 			QPoint topLeft = windowRect.topLeft();
 			QRect localCoord = repaintRect.translated(-topLeft);
 
-			assert(window->getContent() != NULL);
+			assert(window->windowContent() != NULL);
 			assert(dest != NULL);
-			qimage_bitblt(localCoord, window->getContent(), repaintRect.topLeft(), dest);
+			qimage_bitblt(localCoord, window->windowContent(), repaintRect.topLeft(), dest);
 		}
 
 		toRepaint -= inter;
@@ -217,16 +234,21 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons) {
 	QFreeRdpWindow *rdpWindow = getWindowAt(pos);
 	QWindow *window = nullptr;
-	//WmWidget *targetWmWidget = nullptr;
-	QPoint localCoord;
+	WmWidget *targetWmWidget = nullptr;
+	QPoint localPos;
 
 	bool wmEvent = false;
 
 	if (rdpWindow) {
 		window = rdpWindow->window();
 		wmEvent = !window->geometry().contains(pos);
-		localCoord = (pos - window->geometry().topLeft());
-		// targetWmWidget = wmEvent ? rdpWindow->decorations() : nullptr;
+		if (wmEvent) {
+			targetWmWidget = rdpWindow->decorations();
+			localPos = (pos - rdpWindow->outerWindowGeometry().topLeft());
+		} else {
+			localPos = (pos - window->geometry().topLeft());
+			targetWmWidget = nullptr;
+		}
 	}
 
 	if (window != mEnteredWindow) {
@@ -234,36 +256,41 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 			QWindowSystemInterface::handleLeaveEvent(mEnteredWindow);
 	}
 
-	/*if (mEnteredWidget != targetWmWidget && mEnteredWidget)
-		mEnteredWidget->handleLeave(); */
+	if (targetWmWidget != mEnteredWidget) {
+		if (mEnteredWidget)
+			mEnteredWidget->handleLeave();
+	}
 
 	if (window != mEnteredWindow) {
 		if (window)
-			QWindowSystemInterface::handleEnterEvent(window, localCoord, pos);
+			QWindowSystemInterface::handleEnterEvent(window, localPos, pos);
 
 		mEnteredWindow = window;
 	}
 
-	/*
 	if (targetWmWidget != mEnteredWidget) {
 		if (targetWmWidget)
 			targetWmWidget->handleEnter(pos - targetWmWidget->localPosition());
+
 		mEnteredWidget = targetWmWidget;
-	}*/
+	}
 
 	if(buttons && rdpWindow)
 		setFocusWindow(rdpWindow);
 
 	if (wmEvent) {
-		//qDebug("WM mouse event");
+		if (targetWmWidget) {
+			targetWmWidget->handleMouse(localPos, buttons);
+			/*if (targetWmWidget->isDirty()) {
+				rdpWindow->repaintDecorations();
+				pushDirtyArea(rdpWindow->outerWindowGeometry());
+			}*/
+		}
 
 	} else {
-		/*
-		 * this an event for the window content
-		 */
 		if(window) {
 			//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
-			QWindowSystemInterface::handleMouseEvent(window, localCoord, pos, buttons);
+			QWindowSystemInterface::handleMouseEvent(window, localPos, pos, buttons);
 		}
 	}
 
