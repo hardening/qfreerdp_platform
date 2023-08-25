@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -25,9 +25,11 @@
 #include "qfreerdpbackingstore.h"
 #include "qfreerdpplatform.h"
 #include "qfreerdpwindowmanager.h"
+#include "qfreerdpwmwidgets.h"
 
 #include <QtCore/QtDebug>
 #include <QPainter>
+#include <QImage>
 #include <qpa/qwindowsysteminterface.h>
 #include <qpa/qplatformwindow_p.h>
 
@@ -41,7 +43,8 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
     mWinId( WId(globalWinId++) ),
     mVisible(false),
     mSentInitialResize(false),
-	mDecorate(false)
+	mDecorate(false),
+	mDecorations(nullptr)
 {
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
 	qDebug() << "QFreeRdpWindow ctor(" << mWinId << ", type=" << window->type() << ")";
@@ -49,6 +52,7 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
 	// adapt window position
 	if (window->type() == Qt::Dialog) {
 		this->center();
+		mDecorations = new WmWindowDecoration(this, defaultColorScheme, platform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
 		mDecorate = true;
 	}
 }
@@ -65,7 +69,7 @@ void QFreeRdpWindow::setBackingStore(QFreeRdpBackingStore *b) {
 
 
 void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
-    qDebug("QFreeRdpWindow::setWindowState(0x%x)", __func__, (int)state); // << state;
+    qDebug() << "QFreeRdpWindow::setWindowState(" << state << ")";
 
     switch(state) {
     case Qt::WindowActive:
@@ -108,7 +112,7 @@ void QFreeRdpWindow::setVisible(bool visible) {
 		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
 	}
 
-	mPlatform->mWindowManager->pushDirtyArea(geometry());
+	mPlatform->mWindowManager->pushDirtyArea(outerWindowGeometry());
 }
 
 void QFreeRdpWindow::setGeometry(const QRect &rect) {
@@ -117,20 +121,29 @@ void QFreeRdpWindow::setGeometry(const QRect &rect) {
 	QRegion updateRegion(geometry());
 
 	QPlatformWindow::setGeometry(rect);
-	updateRegion += rect;
-	mPlatform->mWindowManager->pushDirtyArea(updateRegion);
+	updateRegion += outerWindowGeometry();
 
 	QWindowSystemInterface::handleGeometryChange(window(), rect);
 	QWindowSystemInterface::handleExposeEvent(window(), QRegion(rect));
+
+	if (mDecorations) {
+		mDecorations->resizeFromWindow(window());
+	}
+
+	notifyDirty(updateRegion);
 }
+
+void QFreeRdpWindow::notifyDirty(const QRegion &dirty) {
+	mPlatform->mWindowManager->pushDirtyArea(dirty);
+}
+
 
 void QFreeRdpWindow::propagateSizeHints() {
 }
 
 #define TOP_BAR_SIZE 30
 #define BORDERS_SIZE 2
-#define BORDER_COLOR Qt::black
-#define TITLE_COLOR Qt::white
+
 
 QMargins QFreeRdpWindow::frameMargins() const
 {
@@ -145,6 +158,8 @@ QMargins QFreeRdpWindow::frameMargins() const
 void QFreeRdpWindow::setWindowTitle(const QString &title)
 {
 	QPlatformWindow::setWindowTitle(title);
+	if (mDecorations)
+		mDecorations->setTitle(title);
 }
 
 QRect QFreeRdpWindow::outerWindowGeometry()const
@@ -155,46 +170,16 @@ QRect QFreeRdpWindow::outerWindowGeometry()const
 	return geometry.adjusted(-m.left(), -m.top(), m.right(), m.bottom());
 }
 
-#if 0
-WmWidget *QFreeRdpWindow::decorations() const {
+
+WmWindowDecoration *QFreeRdpWindow::decorations() const {
 	return mDecorations;
 }
-#endif
 
-#if 0
-void QFreeRdpWindow::drawDecorations() {
-	QRect decoGeom = outerWindowGeometry();
-	decoGeom = QRect(0, 0, decoGeom.width(), decoGeom.height());
-	if (!mBorders)
-		mBorders = new QImage(decoGeom.size(), QImage::Format_ARGB32_Premultiplied);
-
-	QString title = window()->title();
-	QPainter painter(mBorders);
-
-	painter.fillRect(0, 0, decoGeom.width(), decoGeom.height(), Qt::black);
-
-	QFont font("times", 15);
-	QFontMetrics fm(font);
-
-	painter.setFont(font);
-	painter.setPen(TITLE_COLOR);
-	painter.drawText(QPoint((decoGeom.width() - fm.horizontalAdvance(title)) / 2, 5 + fm.height() / 2), title);
-	painter.drawLine(QPoint(0, TOP_BAR_SIZE-1), QPoint(decoGeom.width()-1, TOP_BAR_SIZE-1));
-	mBordersDirty = false;
-
-	auto closeIcons = mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON);
-	const QImage *closeIcon = closeIcons->normalIcon;
-
-	mCloseButtonArea = QRect(QPoint(decoGeom.width() - closeIcon->width() - 5, 5), closeIcon->size());
-	painter.drawImage(mCloseButtonArea.topLeft(), *closeIcon);
-
-	static int counter = 0;
-	QString destFile = QString("/tmp/borders_%1_%2.png").arg(mWinId).arg(counter++);
-	mBorders->save(destFile, "PNG", 100);
+QRegion QFreeRdpWindow::decorationGeometry() const {
+	return mDecorations->geometryRegion();
 }
-#endif
 
-const QImage *QFreeRdpWindow::getContent() {
+const QImage *QFreeRdpWindow::windowContent() {
 	if (!mBackingStore) {
 		qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
 		return 0;
@@ -212,7 +197,5 @@ void QFreeRdpWindow::center() {
 
 	this->setGeometry(QRect(x, y, windowGeometry.width(), windowGeometry.height()));
 }
-
-
 
 QT_END_NAMESPACE

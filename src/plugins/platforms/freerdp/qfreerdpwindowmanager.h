@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -31,7 +31,7 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpWindow;
 class QFreeRdpPlatform;
-//class WmWidget;
+class WmWidget;
 
 
 /**
@@ -80,7 +80,7 @@ protected:
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mFocusWindow;
 	QWindow *mEnteredWindow;
-	//WmWidget *mEnteredWidget;
+	WmWidget *mEnteredWidget;
 	int mDecoratedWindows;
 	bool mDoDecorate;
 	int mFps;

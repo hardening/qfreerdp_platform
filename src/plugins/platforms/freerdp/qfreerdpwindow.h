@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -29,8 +29,12 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
 class QFreeRdpBackingStore;
-//class WmWidget;
+class WmWindowDecoration;
+class QImage;
 
+/**
+ * @brief a window
+ */
 class QFreeRdpWindow : public QPlatformWindow
 {
 	Q_DECLARE_PRIVATE(QPlatformWindow)
@@ -58,11 +62,12 @@ public:
 
     bool isVisible() const { return mVisible; }
 
-    const QImage *getContent();
-    //void drawDecorations();
-    void center();
+    WmWindowDecoration *decorations() const;
+    QRegion decorationGeometry() const;
 
-public slots:
+    const QImage *windowContent();
+    void center();
+    void notifyDirty(const QRegion &dirty);
 
 protected:
     QFreeRdpPlatform *mPlatform;
@@ -71,7 +76,9 @@ protected:
     WId mWinId;
     bool mVisible;
     bool mSentInitialResize;
+
     bool mDecorate;
+    WmWindowDecoration *mDecorations;
 };
 
 QT_END_NAMESPACE
