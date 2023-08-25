@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright © 2013 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and

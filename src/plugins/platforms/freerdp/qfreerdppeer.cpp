@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright © 2013 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
@@ -1183,7 +1183,7 @@ bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
 	const QImage *src = mPlatform->getScreen()->getScreenBits();
 
 	for (QRect rect : region) {
-		qDebug() << "repaint_egfx(" << rect << ")";
+		//qDebug() << "repaint_egfx(" << rect << ")";
 		if (compress)
 			adjustRectForPlanar(rect, peerSize);
 
