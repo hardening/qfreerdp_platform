@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -30,6 +30,9 @@ QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
 
+/**
+ * @brief backing store for FreeRDP QPA
+ */
 class QFreeRdpBackingStore : public QObject, public QPlatformBackingStore
 {
     Q_OBJECT
@@ -43,7 +46,6 @@ public:
     void flush(QWindow *window, const QRegion &region, const QPoint &offset);
 
     void resize(const QSize &size, const QRegion &staticContents);
-
 
 protected:
     QImage mImage;
