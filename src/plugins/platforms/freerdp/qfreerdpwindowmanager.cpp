@@ -159,7 +159,7 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 
 	QRegion dirtyRegion = toRepaint;
 
-	qDebug() << "dirtyRegion=" << dirtyRegion;
+	//qDebug() << "dirtyRegion=" << dirtyRegion;
 
 	foreach(QFreeRdpWindow *window, mWindows) {
 		if(!window->isVisible())
