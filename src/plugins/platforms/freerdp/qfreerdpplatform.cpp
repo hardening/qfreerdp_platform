@@ -57,29 +57,6 @@
 #define DEFAULT_KEY_FILE 	"cert.key"
 
 
-/** @brief configuration for FreeRdpPlatform */
-struct QFreeRdpPlatformConfig {
-	/**
-	 * @param params list of parameters
-	 */
-	QFreeRdpPlatformConfig(const QStringList &params);
-
-	~QFreeRdpPlatformConfig();
-
-	char *bind_address;
-	int port;
-	int fixed_socket;
-
-	char *server_cert;
-	char *server_key;
-	char *rdp_key;
-	bool tls_enabled;
-	int fps;
-
-	QSize screenSz;
-	DisplayMode displayMode;
-};
-
 QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	bind_address(0), port(3389), fixed_socket(-1),
 	server_cert( strdup(DEFAULT_CERT_FILE) ),
@@ -87,6 +64,9 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	rdp_key( strdup(DEFAULT_KEY_FILE) ),
 	tls_enabled(true),
 	fps(24),
+	clipboard_enabled(true),
+	egfx_enabled(true),
+	secrets_file(nullptr),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT)
 {
@@ -135,15 +115,27 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param.startsWith(QLatin1String("cert="))) {
 			subVal = param.mid(strlen("cert="));
 			server_cert = strdup(subVal.toLatin1().data());
-			if(!ok) {
+			if(!server_cert) {
 				qWarning() << "invalid cert" << subVal;
 			}
 		} else if(param.startsWith(QLatin1String("key="))) {
 			subVal = param.mid(strlen("key="));
 			server_key = strdup(subVal.toLatin1().data());
-			if(!ok) {
+			if(!server_key) {
 				qWarning() << "invalid key" << subVal;
 			}
+		} else if(param.startsWith(QLatin1String("secrets="))) {
+			subVal = param.mid(strlen("secrets="));
+			secrets_file = strdup(subVal.toLatin1().data());
+			if(!secrets_file) {
+				qWarning() << "invalid secrets key" << subVal;
+			}
+		} else if(param == "noegfx") {
+			qDebug("disabling egfx");
+			egfx_enabled = false;
+		} else if(param == "noclipboard") {
+			qDebug("disabling clipboard");
+			clipboard_enabled = false;
 		} else if(param.startsWith(QLatin1String("mode="))) {
 			subVal = param.mid(strlen("mode="));
 			QString mode = strdup(subVal.toLatin1().data());
@@ -409,6 +401,12 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 			if (!freerdp_settings_set_pointer_len(settings, FreeRDP_RdpServerRsaKey, key, 1)) {
 				qCritical() << "failed to set FreeRDP_RdpServerRsaKey from" << mConfig->rdp_key;
 			}
+		}
+	}
+
+	if (mConfig->secrets_file) {
+		if (!freerdp_settings_set_string(settings, FreeRDP_TlsSecretsFile, mConfig->secrets_file)) {
+			qCritical() << "failed to set secrets file";
 		}
 	}
 

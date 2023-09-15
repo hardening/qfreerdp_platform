@@ -71,12 +71,13 @@ protected:
 	void updateMouseButtonsFromFlags(DWORD flags, bool extended);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
-	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);
+	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate);
 	bool initializeChannels();
 
 	bool frameAck(UINT32 frameId);
 	bool initGfxDisplay();
 	bool egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise, UINT32 version, UINT &rc);
+	void checkDrdynvcState();
 
 public slots:
 	void incomingBytes(int sock);
