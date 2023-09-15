@@ -64,6 +64,33 @@ struct IconResource {
 	QImage *overIcon;
 };
 
+/** @brief configuration for FreeRdpPlatform */
+struct QFreeRdpPlatformConfig {
+	/**
+	 * @param params list of parameters
+	 */
+	QFreeRdpPlatformConfig(const QStringList &params);
+
+	~QFreeRdpPlatformConfig();
+
+	char *bind_address;
+	int port;
+	int fixed_socket;
+
+	char *server_cert;
+	char *server_key;
+	char *rdp_key;
+	bool tls_enabled;
+	int fps;
+	bool clipboard_enabled;
+	bool egfx_enabled;
+	char *secrets_file;
+
+	QSize screenSz;
+	DisplayMode displayMode;
+};
+
+
 /**
  * @brief
  */
