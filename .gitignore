@@ -2,12 +2,19 @@
 *.slo
 *.lo
 *.o
+src/wmwidgetsTests/wmwidgetsTests
 
 # Compiled Dynamic libraries
 *.so
 *.dylib
+**/*.so.*
+**/*.prl
 
 # Compiled Static libraries
 *.lai
 *.la
 *.a
+
+**/Makefile
+**/.moc
+**/.rcc

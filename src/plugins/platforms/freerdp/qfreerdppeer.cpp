@@ -604,7 +604,7 @@ BOOL QFreeRdpPeer::xf_surface_frame_acknowledge(rdpContext* context, UINT32 fram
 
 UINT QFreeRdpPeer::rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise) {
 	QFreeRdpPeer *peer = (QFreeRdpPeer *)context->custom;
-	UINT rc;
+	UINT rc = CHANNEL_RC_OK;
 	UINT32 versionsOrder[] = {
 		RDPGFX_CAPVERSION_107,
 		RDPGFX_CAPVERSION_106,
@@ -618,8 +618,10 @@ UINT QFreeRdpPeer::rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDP
 	};
 
 	for (size_t i = 0; i < ARRAYSIZE(versionsOrder); i++) {
-		if (peer->egfx_caps_test(capsAdvertise, versionsOrder[i], rc))
+		if (peer->egfx_caps_test(capsAdvertise, versionsOrder[i], rc)) {
+			peer->mFlags.setFlag(PEER_WAITING_GRAPHICS, false);
 			return rc;
+		}
 	}
 
 	/* TODO: handle older versions */
@@ -839,6 +841,7 @@ bool QFreeRdpPeer::initializeChannels()
 			mRdpgfx->FrameAcknowledge = rdpgfx_frame_acknowledge;
 
 			mFlags.setFlag(PEER_WAITING_DYNVC, true);
+			mFlags.setFlag(PEER_WAITING_GRAPHICS, true);
 		} else {
 			qDebug() << "no support for EGFX";
 		}
@@ -1052,7 +1055,8 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 
 	if(!mFlags.testFlag(PEER_ACTIVATED) ||
 	   mFlags.testFlag(PEER_OUTPUT_DISABLED) ||
-	   mFlags.testFlag(PEER_WAITING_DYNVC))
+	   mFlags.testFlag(PEER_WAITING_DYNVC) ||
+	   mFlags.testFlag(PEER_WAITING_GRAPHICS))
 		return;
 
 	//qDebug() << "QFreeRdpPeer::repaint(" << mDirtyRegion << ")";

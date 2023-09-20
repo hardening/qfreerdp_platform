@@ -92,6 +92,10 @@ void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
 	if (!mWindows.removeAll(window))
 		return;
 
+	auto deco = window->decorations();
+	if (deco == mEnteredWidget)
+		mEnteredWidget = nullptr;
+
 	if (isDecorableWindow(window->window()))
 		mDecoratedWindows--;
 
