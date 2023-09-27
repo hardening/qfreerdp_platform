@@ -948,6 +948,7 @@ bool QFreeRdpPeer::init() {
 
 	rdpSettings	*settings;
 	settings = mClient->context->settings;
+	settings->MultitransportFlags = 0;
 	settings->NlaSecurity = FALSE;
 	settings->RemoteFxCodec = FALSE;
 	settings->NSCodec = TRUE; // support NS codec
@@ -1387,6 +1388,10 @@ bool QFreeRdpPeer::setBlankCursor()
 
 	rdpPointerUpdate* pointer = mClient->context->update->pointer;
 	return pointer->PointerSystem(mClient->context, &system_pointer);
+}
+
+freerdp_peer *QFreeRdpPeer::freerdpPeer() const {
+	return mClient;
 }
 
 bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::CursorShape newShape)

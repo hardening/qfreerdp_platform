@@ -62,6 +62,7 @@ public:
 
     bool setBlankCursor();
     bool setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
+    freerdp_peer *freerdpPeer() const;
 
 protected:
 	void repaint(const QRegion &rect);
