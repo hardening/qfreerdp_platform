@@ -270,6 +270,10 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mConfig;
+
+	foreach(QFreeRdpPeer* peer, mPeers) {
+		delete peer;
+	}
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
@@ -350,10 +354,13 @@ QPlatformClipboard *QFreeRdpPlatform::clipboard() const {
 
 void QFreeRdpPlatform::registerPeer(QFreeRdpPeer *peer) {
 	mPeers.push_back(peer);
+
+	mNativeInterface->setProperty("freerdp_instance", QVariant::fromValue((void*)peer->freerdpPeer()));
 }
 
 void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
 	mPeers.removeAll(peer);
+	mNativeInterface->setProperty("freerdp_instance", QVariant::fromValue((void*)nullptr));
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
