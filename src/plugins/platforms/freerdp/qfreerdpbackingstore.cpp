@@ -1,5 +1,5 @@
 /*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -31,8 +31,8 @@
 QT_BEGIN_NAMESPACE
 
 QFreeRdpBackingStore::QFreeRdpBackingStore(QWindow *window, QFreeRdpPlatform *platform)
-    : QPlatformBackingStore(window),
-      mPlatform(platform)
+: QPlatformBackingStore(window)
+, mPlatform(platform)
 {
 	mPlatform->registerBackingStore(window, this);
 }
@@ -48,11 +48,10 @@ void QFreeRdpBackingStore::flush(QWindow *window, const QRegion &region, const Q
 {
     Q_UNUSED(window);
     Q_UNUSED(offset);
-    //qDebug() << "QFreeRdpBackingStore::" << __func__ << "()";
-    for (const QRect &rect: region & mDirtyRegion) {
-        flush(rect);
-    }
-    mDirtyRegion -= region;
+
+    mPlatform->mWindowManager->pushDirtyArea(
+    		region.translated(window->geometry().topLeft())
+	);
 }
 
 void QFreeRdpBackingStore::resize(const QSize &size, const QRegion &staticContents)
@@ -61,58 +60,7 @@ void QFreeRdpBackingStore::resize(const QSize &size, const QRegion &staticConten
 
     if (mImage.size() != size)
         mImage = QImage(size, QImage::Format_ARGB32_Premultiplied);
-    mDirtyRegion = QRegion();
 }
 
-
-#if 0
-extern void qt_scrollRectInImage(QImage &img, const QRect &rect, const QPoint &offset);
-bool QFreeRdpBackingStore::scroll(const QRegion &area, int dx, int dy)
-{
-    qDebug() << "QFreeRdpBackingStore::" << __func__ << "()";
-    const QPoint offset(dx, dy);
-    foreach (const QRect &rect, area.rects()) {
-        /*QMetaObject::invokeMethod(mHtmlService, "scroll",
-                                  Q_ARG(int, static_cast<int>(window()->winId())),
-                                  Q_ARG(int, rect.x()),
-                                  Q_ARG(int, rect.y()),
-                                  Q_ARG(int, rect.width()),
-                                  Q_ARG(int, rect.height()),
-                                  Q_ARG(int, dx),
-                                  Q_ARG(int, dy));*/
-        qt_scrollRectInImage(mImage, rect, offset);
-    }
-    return true;
-}
-#endif
-
-#if 0
-void QFreeRdpBackingStore::onFlush()
-{
-    qDebug() << "QFreeRdpBackingStore::" << __func__ << "()";
-    window()->handle()->setGeometry(window()->geometry());
-    window()->handle()->setVisible( window()->isVisible() );
-    flush(QRect(QPoint(0, 0), window()->geometry().size()));
-}
-#endif
-
-void QFreeRdpBackingStore::flush(const QRect &rect) {
-	//qDebug() << "QFreeRdpBackingStore::" << __func__ << rect;
-
-	QRect globalRect = rect.translated(window()->geometry().topLeft());
-
-	mPlatform->mWindowManager->repaint(globalRect);
-}
-
-void QFreeRdpBackingStore::beginPaint(const QRegion &region)
-{
-    mDirtyRegion += region;
-    QPlatformBackingStore::beginPaint(region);
-}
-
-void QFreeRdpBackingStore::endPaint()
-{
-    QPlatformBackingStore::endPaint();
-}
 
 QT_END_NAMESPACE

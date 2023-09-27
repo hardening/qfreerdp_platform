@@ -46,8 +46,8 @@
  * OF THIS SOFTWARE.
  */
 
-#ifndef __XCURSOR_OGON_CURSOR_H__
-#define __XCURSOR_OGON_CURSOR_H__
+#ifndef __XCURSOR_RDP_CURSOR_H__
+#define __XCURSOR_RDP_CURSOR_H__
 
 #include <stdint.h>
 

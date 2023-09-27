@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -50,6 +50,46 @@ enum DisplayMode {
 	AUTODETECT = 2,
 	OPTIMIZE = 3
 };
+
+/** @brief */
+typedef enum {
+	ICON_RESOURCE_CLOSE_BUTTON
+} IconResourceType;
+
+/** @brief image resources associated with an icon button*/
+struct IconResource {
+	~IconResource();
+
+	QImage *normalIcon;
+	QImage *overIcon;
+};
+
+/** @brief configuration for FreeRdpPlatform */
+struct QFreeRdpPlatformConfig {
+	/**
+	 * @param params list of parameters
+	 */
+	QFreeRdpPlatformConfig(const QStringList &params);
+
+	~QFreeRdpPlatformConfig();
+
+	char *bind_address;
+	int port;
+	int fixed_socket;
+
+	char *server_cert;
+	char *server_key;
+	char *rdp_key;
+	bool tls_enabled;
+	int fps;
+	bool clipboard_enabled;
+	bool egfx_enabled;
+	char *secrets_file;
+
+	QSize screenSz;
+	DisplayMode displayMode;
+};
+
 
 /**
  * @brief
@@ -125,6 +165,11 @@ public:
 	void setBlankCursor();
 	void setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
 
+	const IconResource *getIconResource(IconResourceType rtype);
+
+protected:
+	bool loadResources();
+
 protected:
     QPlatformFontDatabase *mFontDb;
     QAbstractEventDispatcher *mEventDispatcher;
@@ -137,6 +182,9 @@ protected:
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;
 	QList<QFreeRdpPeer *> mPeers;
+	bool mResourcesLoaded;
+	QMap<IconResourceType, IconResource*> mResources;
+
 };
 QT_END_NAMESPACE
 

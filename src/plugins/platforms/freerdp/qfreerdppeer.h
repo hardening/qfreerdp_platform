@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -62,6 +62,7 @@ public:
 
     bool setBlankCursor();
     bool setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
+    freerdp_peer *freerdpPeer() const;
 
 protected:
 	void repaint(const QRegion &rect);
@@ -71,12 +72,13 @@ protected:
 	void updateMouseButtonsFromFlags(DWORD flags, bool extended);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
-	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew);
+	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate);
 	bool initializeChannels();
 
 	bool frameAck(UINT32 frameId);
 	bool initGfxDisplay();
 	bool egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise, UINT32 version, UINT &rc);
+	void checkDrdynvcState();
 
 public slots:
 	void incomingBytes(int sock);
@@ -110,6 +112,7 @@ protected:
 		PEER_ACTIVATED = 0x00001,
 		PEER_OUTPUT_DISABLED = 0x0002,
 		PEER_WAITING_DYNVC = 0x0004,
+		PEER_WAITING_GRAPHICS = 0x0008
 	};
 	QFlags<PeerFlags> mFlags;
 

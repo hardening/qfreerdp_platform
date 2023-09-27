@@ -1,5 +1,5 @@
 /**
- * Copyright © 2023 David Fort <contact@hardening-consulting.com>
+ * Copyright © 2023 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -20,43 +20,51 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "qfreerdpcursor.h"
-#include "qfreerdpscreen.h"
+#include "wmiconbutton.h"
 
+#include <QPainter>
 #include <QDebug>
 
-
-QT_USE_NAMESPACE
-
-class QFreeRdpCursorPrivate {
-public :
-	QFreeRdpCursorPrivate(QFreeRdpScreen *screen) :
-		mScreen(screen){}
-public :
-    QFreeRdpScreen *mScreen;
-};
-
-QFreeRdpCursor::QFreeRdpCursor(QFreeRdpScreen *screen)
-: d(new QFreeRdpCursorPrivate(screen))
+WmIconButton::WmIconButton(QImage *normal, QImage *over, WmWidget *parent)
+: WmWidget(parent)
+, mNormal(normal)
+, mOver(over)
+, mCurrentImage(mNormal)
+, mButtonDown(false)
 {
+	mMinimumSize = mMaximumSize = mSize = normal->size();
 }
 
-QFreeRdpCursor::~QFreeRdpCursor()
-{
-	delete d;
+void WmIconButton::handleEnter(const QPoint &pos) {
+	Q_UNUSED(pos);
+	qDebug("WmIconButton::handleEnter");
+	mCurrentImage = mOver;
+
+	handleChildDirty(this, QRect(QPoint(0, 0), mSize));
 }
 
-void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window)
-{
-	Q_UNUSED(window)
-	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
-	//qDebug("QFreeRdpCursor::%s(%p, %p) = %d", __func__, (void *)cursor, (void *)window, newShape);
+void WmIconButton::handleLeave() {
+	qDebug("WmIconButton::handleLeave");
+	mCurrentImage = mNormal;
+	mButtonDown = false;
+	handleChildDirty(this, QRect(QPoint(0, 0), mSize));
+}
 
-    if (newShape < Qt::BitmapCursor) {
-        //waylandCursor = requestCursor((WaylandCursor)newShape);
-    } else if (newShape == Qt::BitmapCursor) {
-        //TODO: Bitmap cursor logic
-    } else {
-        //TODO: Custom cursor logic (for resize arrows)
-    }
+void WmIconButton::handleMouse(const QPoint &pos, Qt::MouseButtons buttons) {
+	Q_UNUSED(pos);
+
+	if (buttons & Qt::LeftButton) {
+		/* button clicked */
+		mButtonDown = true;
+	}
+
+	if (mButtonDown && !(buttons & Qt::LeftButton)) {
+		/* button released */
+		mButtonDown = false;
+		emit clicked();
+	}
+}
+
+void WmIconButton::repaint(QPainter &painter, const QPoint &pos) {
+	painter.drawImage(pos + mPos, *mCurrentImage);
 }

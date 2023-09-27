@@ -1,5 +1,5 @@
 /**
- * Copyright © 2023 David Fort <contact@hardening-consulting.com>
+ * Copyright © 2023 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -20,43 +20,29 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "qfreerdpcursor.h"
-#include "qfreerdpscreen.h"
+#pragma once
 
-#include <QDebug>
+#include <wmwidgets/wmwidget.h>
 
+#include <QFont>
+#include <QFontMetrics>
 
-QT_USE_NAMESPACE
+QT_BEGIN_NAMESPACE
 
-class QFreeRdpCursorPrivate {
-public :
-	QFreeRdpCursorPrivate(QFreeRdpScreen *screen) :
-		mScreen(screen){}
-public :
-    QFreeRdpScreen *mScreen;
+/** @brief a label used for window title */
+class WmLabel : public WmWidget {
+public:
+	WmLabel(const QString &title, const QFont &font, WmWidget *parent = nullptr);
+
+	void setTitle(const QString &title);
+
+	void handleResize() override;
+	void repaint(QPainter &painter, const QPoint &pos) override;
+
+protected:
+	QString mTitle;
+	QFont mFont;
+	QFontMetrics mFontMetrics;
 };
 
-QFreeRdpCursor::QFreeRdpCursor(QFreeRdpScreen *screen)
-: d(new QFreeRdpCursorPrivate(screen))
-{
-}
-
-QFreeRdpCursor::~QFreeRdpCursor()
-{
-	delete d;
-}
-
-void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window)
-{
-	Q_UNUSED(window)
-	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
-	//qDebug("QFreeRdpCursor::%s(%p, %p) = %d", __func__, (void *)cursor, (void *)window, newShape);
-
-    if (newShape < Qt::BitmapCursor) {
-        //waylandCursor = requestCursor((WaylandCursor)newShape);
-    } else if (newShape == Qt::BitmapCursor) {
-        //TODO: Bitmap cursor logic
-    } else {
-        //TODO: Custom cursor logic (for resize arrows)
-    }
-}
+QT_END_NAMESPACE

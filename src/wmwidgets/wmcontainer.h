@@ -1,5 +1,5 @@
 /**
- * Copyright © 2023 David Fort <contact@hardening-consulting.com>
+ * Copyright © 2023 Hardening <rdp.effort@gmail.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -20,43 +20,48 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "qfreerdpcursor.h"
-#include "qfreerdpscreen.h"
+#pragma once
 
-#include <QDebug>
+#include <wmwidgets/wmwidget.h>
+
+QT_BEGIN_NAMESPACE
+
+/** @brief size / resize policy */
+typedef enum {
+	WMWIDGET_SIZEPOLICY_FIXED,
+	WMWIDGET_SIZEPOLICY_EXPAND
+} WmWidgetSizePolicy;
+
+/** @brief a widget in a container */
+typedef struct {
+	WmWidgetSizePolicy policy;
+	WmWidget* widget;
+} WmContainerItem;
+
+/** @brief an horizontal container */
+class WmHContainer : public WmWidget {
+public:
+	WmHContainer(WmWidget *parent = nullptr);
+	~WmHContainer();
+	void push(WmWidget* item, WmWidgetSizePolicy policy = WMWIDGET_SIZEPOLICY_FIXED);
+
+	/**  @overload of WmWidget
+	 * @{ */
+	void handleEnter(const QPoint &pos) override;
+	void handleLeave() override;
+	void handleMouse(const QPoint &pos, Qt::MouseButtons buttons) override;
+	void handleResize() override;
+	void repaint(QPainter &painter, const QPoint &pos) override;
+	/** @} */
 
 
-QT_USE_NAMESPACE
+protected:
+	void computeMinimums();
+	void recomputeSizesAndPos();
 
-class QFreeRdpCursorPrivate {
-public :
-	QFreeRdpCursorPrivate(QFreeRdpScreen *screen) :
-		mScreen(screen){}
-public :
-    QFreeRdpScreen *mScreen;
+protected:
+	QList<WmContainerItem> mItems;
+	WmWidget *mEntered;
 };
 
-QFreeRdpCursor::QFreeRdpCursor(QFreeRdpScreen *screen)
-: d(new QFreeRdpCursorPrivate(screen))
-{
-}
-
-QFreeRdpCursor::~QFreeRdpCursor()
-{
-	delete d;
-}
-
-void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window)
-{
-	Q_UNUSED(window)
-	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
-	//qDebug("QFreeRdpCursor::%s(%p, %p) = %d", __func__, (void *)cursor, (void *)window, newShape);
-
-    if (newShape < Qt::BitmapCursor) {
-        //waylandCursor = requestCursor((WaylandCursor)newShape);
-    } else if (newShape == Qt::BitmapCursor) {
-        //TODO: Bitmap cursor logic
-    } else {
-        //TODO: Custom cursor logic (for resize arrows)
-    }
-}
+QT_END_NAMESPACE

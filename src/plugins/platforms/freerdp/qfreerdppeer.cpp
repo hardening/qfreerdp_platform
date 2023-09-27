@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -35,6 +35,7 @@
 #include <freerdp/channels/cliprdr.h>
 #include <freerdp/channels/drdynvc.h>
 
+#include "qfreerdpplatform.h"
 #include "qfreerdppeer.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpscreen.h"
@@ -603,7 +604,7 @@ BOOL QFreeRdpPeer::xf_surface_frame_acknowledge(rdpContext* context, UINT32 fram
 
 UINT QFreeRdpPeer::rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise) {
 	QFreeRdpPeer *peer = (QFreeRdpPeer *)context->custom;
-	UINT rc;
+	UINT rc = CHANNEL_RC_OK;
 	UINT32 versionsOrder[] = {
 		RDPGFX_CAPVERSION_107,
 		RDPGFX_CAPVERSION_106,
@@ -617,8 +618,10 @@ UINT QFreeRdpPeer::rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDP
 	};
 
 	for (size_t i = 0; i < ARRAYSIZE(versionsOrder); i++) {
-		if (peer->egfx_caps_test(capsAdvertise, versionsOrder[i], rc))
+		if (peer->egfx_caps_test(capsAdvertise, versionsOrder[i], rc)) {
+			peer->mFlags.setFlag(PEER_WAITING_GRAPHICS, false);
 			return rc;
+		}
 	}
 
 	/* TODO: handle older versions */
@@ -720,9 +723,11 @@ BOOL QFreeRdpPeer::xf_peer_activate(freerdp_peer *client) {
 		return FALSE;
 
 	rdpPeer->mFlags.setFlag(PEER_ACTIVATED);
-	if (!(rdpPeer->mFlags & PEER_WAITING_DYNVC))
+	if (rdpPeer->mFlags & PEER_WAITING_DYNVC) {
+		rdpPeer->checkDrdynvcState();
+	} else {
 		rdpPeer->repaint(QRegion());
-
+	}
 	return TRUE;
 }
 
@@ -798,7 +803,9 @@ bool QFreeRdpPeer::initializeChannels()
 	delete mClipboard;
 	mClipboard = nullptr;
 
-	if (WTSVirtualChannelManagerIsChannelJoined(mVcm, CLIPRDR_SVC_CHANNEL_NAME))
+	QFreeRdpPlatformConfig *config = mPlatform->mConfig;
+
+	if (config->clipboard_enabled && WTSVirtualChannelManagerIsChannelJoined(mVcm, CLIPRDR_SVC_CHANNEL_NAME))
 	{
 		qDebug() << "instanciating clipboard component";
 
@@ -820,7 +827,7 @@ bool QFreeRdpPeer::initializeChannels()
 	if (WTSVirtualChannelManagerIsChannelJoined(mVcm, DRDYNVC_SVC_CHANNEL_NAME))
 	{
 		auto settings = mClient->context->settings;
-		if (settings->SupportGraphicsPipeline) {
+		if (settings->SupportGraphicsPipeline && config->egfx_enabled) {
 			qDebug() << "instanciating EGFX component";
 			mRdpgfx = rdpgfx_server_context_new(mVcm);
 			if (!mRdpgfx) {
@@ -830,10 +837,18 @@ bool QFreeRdpPeer::initializeChannels()
 
 			mRdpgfx->rdpcontext = mClient->context;
 			mRdpgfx->custom = this;
+			mRdpgfx->CapsAdvertise = rdpgfx_caps_advertise;
+			mRdpgfx->FrameAcknowledge = rdpgfx_frame_acknowledge;
+
 			mFlags.setFlag(PEER_WAITING_DYNVC, true);
+			mFlags.setFlag(PEER_WAITING_GRAPHICS, true);
 		} else {
 			qDebug() << "no support for EGFX";
 		}
+
+		// note: this will cause the dynamic channel to be started
+		if ((mFlags & PEER_WAITING_DYNVC) && !WTSVirtualChannelManagerOpen(mVcm))
+			return false;
 	}
 
 	init_display(mClient);
@@ -933,6 +948,7 @@ bool QFreeRdpPeer::init() {
 
 	rdpSettings	*settings;
 	settings = mClient->context->settings;
+	settings->MultitransportFlags = 0;
 	settings->NlaSecurity = FALSE;
 	settings->RemoteFxCodec = FALSE;
 	settings->NSCodec = TRUE; // support NS codec
@@ -969,7 +985,8 @@ bool QFreeRdpPeer::init() {
 	HANDLE vcmHandle = WTSVirtualChannelManagerGetEventHandle(mVcm);
 	if (vcmHandle)
 	{
-		peerCtx->channelEvent = new QSocketNotifier(GetEventFileDescriptor(vcmHandle), QSocketNotifier::Read);
+		int vcmFd = GetEventFileDescriptor(vcmHandle);
+		peerCtx->channelEvent = new QSocketNotifier(vcmFd, QSocketNotifier::Read);
 		connect(peerCtx->channelEvent, SIGNAL(activated(int)), this, SLOT(channelTraffic(int)) );
 	}
 
@@ -987,6 +1004,40 @@ void QFreeRdpPeer::incomingBytes(int) {
 	} while (mClient->HasMoreToRead(mClient));
 }
 
+void QFreeRdpPeer::checkDrdynvcState() {
+	switch (WTSVirtualChannelManagerGetDrdynvcState(mVcm))
+	{
+	case DRDYNVC_STATE_NONE:
+		qDebug("drdynvc not ready");
+		break;
+	case DRDYNVC_STATE_READY:
+		if (mFlags.testFlag(PEER_WAITING_DYNVC) && mRdpgfx && !mGfxOpened)	{
+			qDebug("drdynvc ready, opening GraphicsPipeline");
+			if (!mRdpgfx->Open(mRdpgfx))
+			{
+				qDebug("Failed to open GraphicsPipeline");
+				mClient->context->settings->SupportGraphicsPipeline = FALSE;
+				mRenderMode = RENDER_BITMAP_UPDATES;
+			}
+			else
+			{
+				qDebug("Gfx Pipeline Opened");
+				mGfxOpened = true;
+				mRenderMode = RENDER_EGFX;
+				freerdp_planar_topdown_image(mClient->context->codecs->planar, TRUE);
+			}
+			mFlags.setFlag(PEER_WAITING_DYNVC, false);
+		}
+		break;
+	case DRDYNVC_STATE_FAILED:
+		qDebug("drdynvc failed");
+		break;
+	default:
+		break;
+	}
+
+}
+
 void QFreeRdpPeer::channelTraffic(int) {
 	if (!WTSVirtualChannelManagerCheckFileDescriptor(mVcm)) {
 		qDebug() << "error treating channels";
@@ -995,34 +1046,7 @@ void QFreeRdpPeer::channelTraffic(int) {
 	}
 
 	if (mFlags.testFlag(PEER_ACTIVATED) && WTSVirtualChannelManagerIsChannelJoined(mVcm, DRDYNVC_SVC_CHANNEL_NAME))	{
-		switch (WTSVirtualChannelManagerGetDrdynvcState(mVcm))
-		{
-		case DRDYNVC_STATE_NONE:
-			break;
-		case DRDYNVC_STATE_READY:
-			if (mFlags.testFlag(PEER_WAITING_DYNVC) && mRdpgfx && !mGfxOpened)	{
-				mRdpgfx->CapsAdvertise = rdpgfx_caps_advertise;
-				mRdpgfx->FrameAcknowledge = rdpgfx_frame_acknowledge;
-
-				if (!mRdpgfx->Open(mRdpgfx))
-				{
-					qDebug("Failed to open GraphicsPipeline");
-					mClient->context->settings->SupportGraphicsPipeline = FALSE;
-					mRenderMode = RENDER_BITMAP_UPDATES;
-				}
-				else
-				{
-					qDebug("Gfx Pipeline Opened");
-					mGfxOpened = true;
-					mRenderMode = RENDER_EGFX;
-					freerdp_planar_topdown_image(mClient->context->codecs->planar, TRUE);
-				}
-				mFlags.setFlag(PEER_WAITING_DYNVC, false);
-			}
-			break;
-		default:
-			break;
-		}
+		checkDrdynvcState();
 	}
 }
 
@@ -1032,7 +1056,8 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 
 	if(!mFlags.testFlag(PEER_ACTIVATED) ||
 	   mFlags.testFlag(PEER_OUTPUT_DISABLED) ||
-	   mFlags.testFlag(PEER_WAITING_DYNVC))
+	   mFlags.testFlag(PEER_WAITING_DYNVC) ||
+	   mFlags.testFlag(PEER_WAITING_GRAPHICS))
 		return;
 
 	//qDebug() << "QFreeRdpPeer::repaint(" << mDirtyRegion << ")";
@@ -1183,7 +1208,7 @@ bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
 	const QImage *src = mPlatform->getScreen()->getScreenBits();
 
 	for (QRect rect : region) {
-		qDebug() << "repaint_egfx(" << rect << ")";
+		//qDebug() << "repaint_egfx(" << rect << ")";
 		if (compress)
 			adjustRectForPlanar(rect, peerSize);
 
@@ -1364,15 +1389,35 @@ bool QFreeRdpPeer::setBlankCursor()
 	return pointer->PointerSystem(mClient->context, &system_pointer);
 }
 
+freerdp_peer *QFreeRdpPeer::freerdpPeer() const {
+	return mClient;
+}
+
 bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::CursorShape newShape)
 {
-	bool isNew;
-	UINT16 cacheIndex = getCursorCacheIndex(newShape, isNew);
+	bool isNew, isUpdate;
+	UINT16 cacheIndex = getCursorCacheIndex(newShape, isNew, isUpdate);
+	qDebug() << "pointer cache entry" << cacheIndex
+			<< " isNew=" << isNew
+			<< " isUpdate=" << isUpdate;
+
 	rdpPointerUpdate* pointer = mClient->context->update->pointer;
-	if (isNew) {
-		POINTER_LARGE_UPDATE lpointer = *largePointer;
-		lpointer.cacheIndex = cacheIndex;
-		return pointer->PointerLarge(mClient->context, &lpointer);
+	if (isNew || isUpdate) {
+		POINTER_NEW_UPDATE npointer;
+		POINTER_COLOR_UPDATE *lpointer = &npointer.colorPtrAttr;
+
+		npointer.xorBpp = largePointer->xorBpp;
+		lpointer->cacheIndex = cacheIndex;
+		lpointer->width = largePointer->width;
+		lpointer->height = largePointer->height;
+		lpointer->hotSpotX = largePointer->hotSpotX;
+		lpointer->hotSpotY = largePointer->hotSpotY;
+		lpointer->xorMaskData = largePointer->xorMaskData;
+		lpointer->lengthXorMask = largePointer->lengthXorMask;
+		lpointer->andMaskData = largePointer->andMaskData;
+		lpointer->lengthAndMask = largePointer->lengthAndMask;
+
+		return pointer->PointerNew(mClient->context, &npointer);
 	}
 
 	POINTER_CACHED_UPDATE update;
@@ -1380,16 +1425,18 @@ bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::Curs
 	return pointer->PointerCached(mClient->context, &update);
 }
 
-UINT16 QFreeRdpPeer::getCursorCacheIndex(Qt::CursorShape shape, bool &isNew)
+UINT16 QFreeRdpPeer::getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate)
 {
 	auto it = mCursorCache.find(shape);
 	if (it != mCursorCache.end()) {
 		it->lastUse = GetTickCount64();
 		isNew = false;
+		isUpdate = false;
 		return it->cacheIndex;
 	}
 
 	isNew = true;
+	isUpdate = false;
 	auto settings = mClient->context->settings;
 	UINT16 ret = mCursorCache.size();
 	if (settings->PointerCacheSize && (mCursorCache.size() == (int)settings->PointerCacheSize)) {
@@ -1404,6 +1451,7 @@ UINT16 QFreeRdpPeer::getCursorCacheIndex(Qt::CursorShape shape, bool &isNew)
 
 		ret = removeIt->cacheIndex;
 		mCursorCache.erase(removeIt);
+		isUpdate = true;
 		qDebug() << "removing pointer cache index " << ret;
 	}
 

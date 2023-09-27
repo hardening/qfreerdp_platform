@@ -60,23 +60,31 @@ SOURCES += main.cpp 				\
 		qfreerdppeer.cpp			\
 		qfreerdppeerclipboard.cpp	\
 		qfreerdpwindowmanager.cpp	\
+		qfreerdpwmwidgets.cpp 		\
 		xcursors/xcursor.cpp        \
 		xcursors/rdp-cursor.cpp     \
 		xcursors/qfreerdpxcursor.cpp
-
 
 HEADERS += qfreerdpcompositor.h \
 	qfreerdpplatform.h \
 	qfreerdpclipboard.h \
 	qfreerdpscreen.h \
-	qfreerdpcursor.h			\
+	qfreerdpcursor.h \
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
 	qfreerdppeerclipboard.h	\
 	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
+	qfreerdpwmwidgets.h \
 	xcursors/cursor-data.h \
 	xcursors/xcursor.h \
 	xcursors/rdp-cursor.h \
 	xcursors/qfreerdpxcursor.h
+
+
+LIBS += -L../../../wmwidgets -lwmwidgets
+INCLUDEPATH += ../../..
+
+
+RESOURCES = freerdp.qrc

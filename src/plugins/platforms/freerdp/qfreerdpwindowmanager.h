@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -25,20 +25,24 @@
 #include <QList>
 #include <QRect>
 #include <QRegion>
+#include <QTimer>
 
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpWindow;
 class QFreeRdpPlatform;
-//class WmWidget;
+class WmWidget;
 
 
 /**
  * @brief component handling windows (placement, decorations, events)
  */
-class QFreeRdpWindowManager {
+class QFreeRdpWindowManager : public QObject {
+	Q_OBJECT
 public:
-	QFreeRdpWindowManager(QFreeRdpPlatform *platform);
+	QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps);
+
+	void initialize();
 
 	void addWindow(QFreeRdpWindow *window);
 
@@ -47,6 +51,8 @@ public:
 	void raise(QFreeRdpWindow *window);
 
 	void lower(QFreeRdpWindow *window);
+
+	void pushDirtyArea(const QRegion &region);
 
 	void repaint(const QRegion &region);
 
@@ -66,15 +72,21 @@ public:
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
     QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
 
+protected slots:
+	void onGenerateFrame();
 
 protected:
 	QFreeRdpPlatform *mPlatform;
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mFocusWindow;
 	QWindow *mEnteredWindow;
-	//WmWidget *mEnteredWidget;
+	WmWidget *mEnteredWidget;
 	int mDecoratedWindows;
 	bool mDoDecorate;
+	int mFps;
+
+	QTimer mFrameTimer;
+	QRegion mDirtyRegion;
 };
 
 

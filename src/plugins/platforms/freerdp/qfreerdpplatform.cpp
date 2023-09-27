@@ -1,5 +1,5 @@
-/*
- * Copyright © 2013 Hardening <rdp.effort@gmail.com>
+/**
+ * Copyright © 2013-2023 David Fort <contact@hardening-consulting.com>
  *
  * Permission to use, copy, modify, distribute, and sell this software and
  * its documentation for any purpose is hereby granted without fee, provided
@@ -57,34 +57,16 @@
 #define DEFAULT_KEY_FILE 	"cert.key"
 
 
-/** @brief configuration for FreeRdpPlatform */
-struct QFreeRdpPlatformConfig {
-	/**
-	 * @param params list of parameters
-	 */
-	QFreeRdpPlatformConfig(const QStringList &params);
-
-	~QFreeRdpPlatformConfig();
-
-	char *bind_address;
-	int port;
-	int fixed_socket;
-
-	char *server_cert;
-	char *server_key;
-	char *rdp_key;
-	bool tls_enabled;
-
-	QSize screenSz;
-	DisplayMode displayMode;
-};
-
 QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	bind_address(0), port(3389), fixed_socket(-1),
 	server_cert( strdup(DEFAULT_CERT_FILE) ),
 	server_key( strdup(DEFAULT_KEY_FILE) ),
 	rdp_key( strdup(DEFAULT_KEY_FILE) ),
 	tls_enabled(true),
+	fps(24),
+	clipboard_enabled(true),
+	egfx_enabled(true),
+	secrets_file(nullptr),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT)
 {
@@ -118,6 +100,12 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			if(!ok) {
 				qWarning() << "invalid port" << subVal;
 			}
+		} else if(param.startsWith(QLatin1String("fps="))) {
+			subVal = param.mid(strlen("fps="));
+			fps = subVal.toInt(&ok);
+			if(!ok || (fps <= 0) || (fps > 100)) {
+				qWarning() << "invalid fps value" << subVal;
+			}
 		} else if(param.startsWith(QLatin1String("socket="))) {
 			subVal = param.mid(strlen("socket="));
 			fixed_socket = subVal.toInt(&ok);
@@ -127,15 +115,27 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param.startsWith(QLatin1String("cert="))) {
 			subVal = param.mid(strlen("cert="));
 			server_cert = strdup(subVal.toLatin1().data());
-			if(!ok) {
+			if(!server_cert) {
 				qWarning() << "invalid cert" << subVal;
 			}
 		} else if(param.startsWith(QLatin1String("key="))) {
 			subVal = param.mid(strlen("key="));
 			server_key = strdup(subVal.toLatin1().data());
-			if(!ok) {
+			if(!server_key) {
 				qWarning() << "invalid key" << subVal;
 			}
+		} else if(param.startsWith(QLatin1String("secrets="))) {
+			subVal = param.mid(strlen("secrets="));
+			secrets_file = strdup(subVal.toLatin1().data());
+			if(!secrets_file) {
+				qWarning() << "invalid secrets key" << subVal;
+			}
+		} else if(param == "noegfx") {
+			qDebug("disabling egfx");
+			egfx_enabled = false;
+		} else if(param == "noclipboard") {
+			qDebug("disabling clipboard");
+			clipboard_enabled = false;
 		} else if(param.startsWith(QLatin1String("mode="))) {
 			subVal = param.mid(strlen("mode="));
 			QString mode = strdup(subVal.toLatin1().data());
@@ -196,47 +196,41 @@ void QFreeRdpListener::initialize() {
 	listener->param4 = this;
 
 	auto config = mPlatform->mConfig;
-	if (config->fixed_socket == -1) {
-		if(!listener->Open(listener, config->bind_address, config->port)) {
-			qCritical() << "unable to bind rdp socket\n";
-			return;
-		}
-
-		if (!listener->GetEventHandles(listener, events, 32)) {
-				qCritical("Failed to get FreeRDP event handle");
-				return;
-		}
-
-		if (events[1]) {
-			qDebug("freerdp is also listening on a second socket, but we ignore it");
-		}
-
-		if (!events[0]) {
-			qCritical("could not obtain FreeRDP event handle");
-			return;
-		}
-
-		fd = GetEventFileDescriptor(events[0]);
-
-		if (fd < 0) {
-			qCritical("could not obtain FreeRDP listening socket from event handle");
-			return;
-		}
-
-		if (config->port == 0) {
-			// set port number if specified port is 0 (random port number)
-			struct sockaddr_in sin;
-			socklen_t len = sizeof(sin);
-			if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
-			    perror("getsockname");
-			else
-			    config->port = ntohs(sin.sin_port);
-		}
-
-	} else {
-		// initialize with specified socket
-		fd = config->fixed_socket;
+	if(!listener->Open(listener, config->bind_address, config->port)) {
+		qCritical() << "unable to bind rdp socket\n";
+		return;
 	}
+
+	if (!listener->GetEventHandles(listener, events, 32)) {
+		qCritical("Failed to get FreeRDP event handle");
+		return;
+	}
+
+	if (events[1]) {
+		qDebug("freerdp is also listening on a second socket, but we ignore it");
+	}
+
+	if (!events[0]) {
+		qCritical("could not obtain FreeRDP event handle");
+		return;
+	}
+
+	fd = GetEventFileDescriptor(events[0]);
+	if (fd < 0) {
+		qCritical("could not obtain FreeRDP listening socket from event handle");
+		return;
+	}
+
+	if (config->port == 0) {
+		// set port number if specified port is 0 (random port number)
+		struct sockaddr_in sin;
+		socklen_t len = sizeof(sin);
+		if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
+			perror("getsockname");
+		else
+			config->port = ntohs(sin.sin_port);
+	}
+
 	// this function is sometimes invoked from a freerpd thread, but QSocketNotifier constructor
 	// needs to be invoked on a QThread. QMetaObject::invokeMethod queues the function to be
 	// called by the event loop, and more specifically the thread that owns this
@@ -259,11 +253,10 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 , mClipboard(new QFreeRdpClipboard())
 , mConfig(new QFreeRdpPlatformConfig(paramList))
 , mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
-, mWindowManager(new QFreeRdpWindowManager(this))
+, mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
+, mResourcesLoaded(false)
 {
-	mListener->initialize();
-
 	//Disable desktop settings for now (or themes crash)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
 	QWindowSystemInterface::handleScreenAdded(mScreen);
@@ -277,9 +270,16 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mConfig;
+
+	foreach(QFreeRdpPeer* peer, mPeers) {
+		delete peer;
+	}
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
+	qDebug() << "QFreeRdpPlatform::createPlatformWindow(modality=" << window->modality()
+			<< " flags=" << window->flags() << ")";
+
 	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
 	mWindowManager->addWindow(ret);
 	return ret;
@@ -326,8 +326,21 @@ QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
 }
 
 void QFreeRdpPlatform::initialize() {
+	if (mConfig->fixed_socket != -1) {
+		freerdp_peer *client = freerdp_peer_new(mConfig->fixed_socket);
+		QFreeRdpPeer *peer = new QFreeRdpPeer(this, client);
+		if(!peer->init()) {
+			delete peer;
+		}
+
+		registerPeer(peer);
+	} else {
+		mListener->initialize();
+	}
+
 	// create Input Context Plugin
 	mInputContext.reset(QPlatformInputContextFactory::create());
+	mWindowManager->initialize();
 }
 
 QPlatformInputContext *QFreeRdpPlatform::inputContext() const {
@@ -341,10 +354,13 @@ QPlatformClipboard *QFreeRdpPlatform::clipboard() const {
 
 void QFreeRdpPlatform::registerPeer(QFreeRdpPeer *peer) {
 	mPeers.push_back(peer);
+
+	mNativeInterface->setProperty("freerdp_instance", QVariant::fromValue((void*)peer->freerdpPeer()));
 }
 
 void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
 	mPeers.removeAll(peer);
+	mNativeInterface->setProperty("freerdp_instance", QVariant::fromValue((void*)nullptr));
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
@@ -395,6 +411,12 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 		}
 	}
 
+	if (mConfig->secrets_file) {
+		if (!freerdp_settings_set_string(settings, FreeRDP_TlsSecretsFile, mConfig->secrets_file)) {
+			qCritical() << "failed to set secrets file";
+		}
+	}
+
 	// FIPS mode is currently disabled
 	settings->FIPSMode = FALSE;
 
@@ -435,6 +457,44 @@ void QFreeRdpPlatform::setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::Curso
 	foreach(QFreeRdpPeer *peer, mPeers) {
 		peer->setPointer(pointer, newShape);
 	}
+}
 
+IconResource::~IconResource() {
+	delete normalIcon;
+	delete overIcon;
+}
+
+bool QFreeRdpPlatform::loadResources() {
+	struct ResItem {
+		IconResourceType rtype;
+		const char *normal;
+		const char *hover;
+	};
+
+	ResItem items[] = {
+		{ICON_RESOURCE_CLOSE_BUTTON, ":/qfreerdp/window-close.png", ":/qfreerdp/window-close#hover.png" }
+	};
+
+	for (size_t i = 0; i < ARRAYSIZE(items); i++) {
+		auto item = new IconResource();
+		item->normalIcon = new QImage(items[i].normal, "PNG");
+		item->overIcon = new QImage(items[i].hover, "PNG");
+
+		mResources[items[i].rtype] = item;
+	}
+
+	mResourcesLoaded = true;
+	return true;
+}
+
+const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
+	if (!mResourcesLoaded && !loadResources())
+		return nullptr;
+
+	auto it = mResources.find(rtype);
+	if (it == mResources.end())
+		return nullptr;
+
+	return *it;
 }
 
