@@ -1398,9 +1398,9 @@ bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::Curs
 {
 	bool isNew, isUpdate;
 	UINT16 cacheIndex = getCursorCacheIndex(newShape, isNew, isUpdate);
-	qDebug() << "pointer cache entry" << cacheIndex
+	/*qDebug() << "pointer cache entry" << cacheIndex
 			<< " isNew=" << isNew
-			<< " isUpdate=" << isUpdate;
+			<< " isUpdate=" << isUpdate;*/
 
 	rdpPointerUpdate* pointer = mClient->context->update->pointer;
 	if (isNew || isUpdate) {

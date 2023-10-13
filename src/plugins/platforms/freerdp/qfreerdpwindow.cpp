@@ -50,11 +50,40 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
 	qDebug() << "QFreeRdpWindow ctor(" << mWinId << ", type=" << window->type() << ")";
 
 	// adapt window position
-	if (window->type() == Qt::Dialog) {
+	switch (window->type()) {
+	case Qt::Dialog:
 		this->center();
-		mDecorations = new WmWindowDecoration(this, defaultColorScheme, platform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
-		mDecorate = true;
+		setDecorate(true);
+		break;
+	default:
+		break;
 	}
+}
+
+#define TOP_BAR_SIZE 30
+#define BORDERS_SIZE 2
+
+void QFreeRdpWindow::setDecorate(bool active)
+{
+	if (active == mDecorate)
+		return;
+
+	if (active) {
+		mDecorations = new WmWindowDecoration(this, defaultColorScheme, mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
+
+		setGeometry(
+				geometry().adjusted(BORDERS_SIZE, TOP_BAR_SIZE, -BORDERS_SIZE, -BORDERS_SIZE)
+		);
+	} else {
+		delete mDecorations;
+		mDecorations = nullptr;
+
+		setGeometry(
+				geometry().adjusted(-BORDERS_SIZE, -TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE)
+		);
+	}
+
+	mDecorate = active;
 }
 
 QFreeRdpWindow::~QFreeRdpWindow() {
@@ -141,18 +170,14 @@ void QFreeRdpWindow::notifyDirty(const QRegion &dirty) {
 void QFreeRdpWindow::propagateSizeHints() {
 }
 
-#define TOP_BAR_SIZE 30
-#define BORDERS_SIZE 2
 
 
 QMargins QFreeRdpWindow::frameMargins() const
 {
-	switch (window()->type()) {
-	case Qt::Dialog:
+	if (mDecorate)
 		return QMargins(BORDERS_SIZE, TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE);
-	default:
+	else
 		return QMargins();
-	}
 }
 
 void QFreeRdpWindow::setWindowTitle(const QString &title)
