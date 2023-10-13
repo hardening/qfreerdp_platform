@@ -77,6 +77,10 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 	if (decorate != mDoDecorate) {
 		qDebug("activating windows decorations");
 		dirtyRegion = window->screen()->geometry();
+
+		foreach(QFreeRdpWindow *window, mWindows) {
+			window->setDecorate(true);
+		}
 	}
 
 	mDoDecorate = decorate;
@@ -104,6 +108,11 @@ void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
 	if (decorate != mDoDecorate) {
 		qDebug("desactivating windows decorations");
 		dirtyRegion = window->screen()->geometry();
+
+		foreach(QFreeRdpWindow *window, mWindows) {
+			window->setDecorate(false);
+		}
+
 	}
 	mDoDecorate = decorate;
 
