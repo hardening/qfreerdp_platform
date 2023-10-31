@@ -64,6 +64,7 @@ public:
 
     WmWindowDecoration *decorations() const;
     QRegion decorationGeometry() const;
+    void setDecorate(bool active);
 
     const QImage *windowContent();
     void center();
