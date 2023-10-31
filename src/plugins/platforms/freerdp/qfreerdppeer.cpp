@@ -1395,6 +1395,9 @@ freerdp_peer *QFreeRdpPeer::freerdpPeer() const {
 
 bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::CursorShape newShape)
 {
+	if (!(mFlags & PEER_ACTIVATED))
+		return true;
+
 	bool isNew, isUpdate;
 	UINT16 cacheIndex = getCursorCacheIndex(newShape, isNew, isUpdate);
 	/*qDebug() << "pointer cache entry" << cacheIndex
