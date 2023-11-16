@@ -69,7 +69,6 @@ HEADERS += qfreerdpcompositor.h \
 	qfreerdpplatform.h \
 	qfreerdpclipboard.h \
 	qfreerdpscreen.h \
-	qfreerdpcursor.h \
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
