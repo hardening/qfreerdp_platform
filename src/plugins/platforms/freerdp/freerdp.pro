@@ -50,6 +50,8 @@ equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 	QT += fontdatabase_support_private eventdispatcher_support_private theme_support_private
 }
 
+QMAKE_CXXFLAGS += -DFREERDP_SETTINGS_INTERNAL_USE
+
 SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
 		qfreerdpclipboard.cpp       \
