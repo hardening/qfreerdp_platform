@@ -41,6 +41,7 @@ public:
 	 * @param parent
 	 */
 	QFreeRdpListener(QFreeRdpPlatform *parent);
+	virtual ~QFreeRdpListener();
 
 	/** */
 	void initialize();

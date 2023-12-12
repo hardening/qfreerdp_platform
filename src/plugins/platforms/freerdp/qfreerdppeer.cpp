@@ -469,11 +469,9 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 }
 
 void QFreeRdpPeer::dropSocketNotifier(QSocketNotifier *notifier) {
-	QAbstractEventDispatcher *dispatcher = mPlatform->getDispatcher();
 	if(notifier) {
 		notifier->setEnabled(false);
 		disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
-		dispatcher->unregisterSocketNotifier(notifier);
 		delete notifier;
 	}
 }
@@ -484,6 +482,11 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	dropSocketNotifier(peerCtx->event);
 	dropSocketNotifier(peerCtx->channelEvent);
 
+	if (mRdpgfx) {
+		rdpgfx_server_context_free(mRdpgfx);
+		mRdpgfx = nullptr;
+	}
+
 	if (mClipboard)
 		delete mClipboard;
 
@@ -492,6 +495,11 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	mVcm = NULL;
 
 	mClient->Close(mClient);
+#ifndef NO_XKB_SUPPORT
+	xkb_context_unref(mXkbContext);
+	xkb_keymap_unref(mXkbKeymap);
+	xkb_state_unref(mXkbState);
+#endif
 
 	freerdp_peer_context_free(mClient);
 	freerdp_peer_free(mClient);

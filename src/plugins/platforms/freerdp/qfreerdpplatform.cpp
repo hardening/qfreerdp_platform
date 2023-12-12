@@ -138,7 +138,7 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			clipboard_enabled = false;
 		} else if(param.startsWith(QLatin1String("mode="))) {
 			subVal = param.mid(strlen("mode="));
-			QString mode = strdup(subVal.toLatin1().data());
+			QString mode = subVal;
 			if (mode == "legacy") {
 				displayMode = DisplayMode::LEGACY;
 			} else if (mode == "autodetect") {
@@ -157,93 +157,9 @@ QFreeRdpPlatformConfig::~QFreeRdpPlatformConfig() {
 	free(server_cert);
 	free(server_key);
 	free(rdp_key);
+	free(secrets_file);
 }
 
-QFreeRdpListener::QFreeRdpListener(QFreeRdpPlatform *platform) :
-	listener(0),
-	mSocketNotifier(0),
-	mPlatform(platform) {
-}
-
-
-BOOL QFreeRdpListener::rdp_incoming_peer(freerdp_listener* instance, freerdp_peer* client)
-{
-	qDebug() << "got an incoming connection";
-
-	QFreeRdpListener *listener = (QFreeRdpListener *)instance->param4;
-	QFreeRdpPeer *peer = new QFreeRdpPeer(listener->mPlatform, client);
-	if(!peer->init()) {
-		delete peer;
-		return FALSE;
-	}
-
-	listener->mPlatform->registerPeer(peer);
-	return TRUE;
-}
-
-void QFreeRdpListener::incomingNewPeer() {
-	if(!listener->CheckFileDescriptor(listener))
-		qDebug() << "unable to CheckFileDescriptor\n";
-}
-
-
-void QFreeRdpListener::initialize() {
-	int fd;
-	HANDLE events[32];
-
-	listener = freerdp_listener_new();
-	listener->PeerAccepted = QFreeRdpListener::rdp_incoming_peer;
-	listener->param4 = this;
-
-	auto config = mPlatform->mConfig;
-	if(!listener->Open(listener, config->bind_address, config->port)) {
-		qCritical() << "unable to bind rdp socket\n";
-		return;
-	}
-
-	if (!listener->GetEventHandles(listener, events, 32)) {
-		qCritical("Failed to get FreeRDP event handle");
-		return;
-	}
-
-	if (events[1]) {
-		qDebug("freerdp is also listening on a second socket, but we ignore it");
-	}
-
-	if (!events[0]) {
-		qCritical("could not obtain FreeRDP event handle");
-		return;
-	}
-
-	fd = GetEventFileDescriptor(events[0]);
-	if (fd < 0) {
-		qCritical("could not obtain FreeRDP listening socket from event handle");
-		return;
-	}
-
-	if (config->port == 0) {
-		// set port number if specified port is 0 (random port number)
-		struct sockaddr_in sin;
-		socklen_t len = sizeof(sin);
-		if (getsockname(fd, (struct sockaddr *)&sin, &len) == -1)
-			perror("getsockname");
-		else
-			config->port = ntohs(sin.sin_port);
-	}
-
-	// this function is sometimes invoked from a freerpd thread, but QSocketNotifier constructor
-	// needs to be invoked on a QThread. QMetaObject::invokeMethod queues the function to be
-	// called by the event loop, and more specifically the thread that owns this
-	QMetaObject::invokeMethod(this, "startListener", Qt::QueuedConnection, Q_ARG(int, fd));
-}
-
-// must be invoked on the thread that owns `this`
-void QFreeRdpListener::startListener(int fd) {
-	mSocketNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
-	mPlatform->getDispatcher()->registerSocketNotifier(mSocketNotifier);
-
-	connect(mSocketNotifier, SIGNAL(activated(int)), this, SLOT(incomingNewPeer()));
-}
 
 
 QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
@@ -269,11 +185,17 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 }
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
-	delete mConfig;
-
 	foreach(QFreeRdpPeer* peer, mPeers) {
 		delete peer;
 	}
+
+	delete mListener;
+	delete mWindowManager;
+	delete mScreen;
+	delete mConfig;
+	delete mClipboard;
+	delete mNativeInterface;
+	delete mFontDb;
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {

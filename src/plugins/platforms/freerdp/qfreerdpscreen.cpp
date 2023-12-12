@@ -45,6 +45,7 @@ QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height
 QFreeRdpScreen::~QFreeRdpScreen() {
 	qDebug() << "QFreeRdpScreen::" << __func__ << "()";
 	delete mScreenBits;
+	delete mCursor;
 }
 
 QRect QFreeRdpScreen::geometry() const {

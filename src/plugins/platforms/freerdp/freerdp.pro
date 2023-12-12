@@ -22,6 +22,16 @@ unix {
     QMAKE_CXXFLAGS_RELEASE += -O2
     QMAKE_CXXFLAGS_DEBUG += -O0 -g
     QMAKE_LFLAGS_RELEASE += -pie -Wl,-z,relro -Wl,-z,now -Wl,-strip-all
+
+    isEmpty(asan) {
+        asan = false
+    }
+
+    if($$asan) {
+        message( "Use Address Sanitizer" )
+        QMAKE_CXXFLAGS += -fsanitize=address
+        QMAKE_LFLAGS += -fsanitize=address
+    }
 }
 
 *-clang* {
@@ -56,6 +66,7 @@ SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
 		qfreerdpclipboard.cpp       \
 		qfreerdpplatform.cpp 		\
+		qfreerdplistener.cpp 		\
 		qfreerdpscreen.cpp			\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
@@ -69,13 +80,13 @@ SOURCES += main.cpp 				\
 
 HEADERS += qfreerdpcompositor.h \
 	qfreerdpplatform.h \
+	qfreerdplistener.h \
 	qfreerdpclipboard.h \
 	qfreerdpscreen.h \
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
 	qfreerdppeerclipboard.h	\
-	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
 	qfreerdpwmwidgets.h \
 	xcursors/cursor-data.h \

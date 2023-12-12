@@ -88,6 +88,7 @@ static void ogon_cursor_destroy(struct rdp_cursor *cursor)
 	for (i = 0; i < cursor->image_count; i++)
 		rdp_cursor_image_destroy(cursor->images[i]);
 
+	free(cursor->images);
 	free(cursor->name);
 	free(cursor);
 }
@@ -266,6 +267,7 @@ void rdp_cursor_theme_destroy(struct rdp_cursor_theme *theme)
 		ogon_cursor_destroy(theme->cursors[i]);
 
 	free(theme->cursors);
+	free(theme->name);
 	free(theme);
 }
 
