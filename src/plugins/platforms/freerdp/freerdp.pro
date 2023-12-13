@@ -22,6 +22,16 @@ unix {
     QMAKE_CXXFLAGS_RELEASE += -O2
     QMAKE_CXXFLAGS_DEBUG += -O0 -g
     QMAKE_LFLAGS_RELEASE += -pie -Wl,-z,relro -Wl,-z,now -Wl,-strip-all
+
+    isEmpty(asan) {
+        asan = false
+    }
+
+    if($$asan) {
+        message( "Use Address Sanitizer" )
+        QMAKE_CXXFLAGS += -fsanitize=address
+        QMAKE_LFLAGS += -fsanitize=address
+    }
 }
 
 *-clang* {
@@ -50,10 +60,13 @@ equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 	QT += fontdatabase_support_private eventdispatcher_support_private theme_support_private
 }
 
+QMAKE_CXXFLAGS += -DFREERDP_SETTINGS_INTERNAL_USE
+
 SOURCES += main.cpp 				\
 		qfreerdpcompositor.cpp      \
 		qfreerdpclipboard.cpp       \
 		qfreerdpplatform.cpp 		\
+		qfreerdplistener.cpp 		\
 		qfreerdpscreen.cpp			\
 		qfreerdpbackingstore.cpp	\
 		qfreerdpwindow.cpp			\
@@ -67,14 +80,13 @@ SOURCES += main.cpp 				\
 
 HEADERS += qfreerdpcompositor.h \
 	qfreerdpplatform.h \
+	qfreerdplistener.h \
 	qfreerdpclipboard.h \
 	qfreerdpscreen.h \
-	qfreerdpcursor.h \
 	qfreerdpbackingstore.h \
 	qfreerdpwindow.h \
 	qfreerdppeer.h \
 	qfreerdppeerclipboard.h	\
-	qfreerdplistener.h \
 	qfreerdpwindowmanager.h \
 	qfreerdpwmwidgets.h \
 	xcursors/cursor-data.h \
