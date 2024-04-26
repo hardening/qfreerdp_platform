@@ -66,7 +66,7 @@ public:
 
 	QFreeRdpWindow *getFocusWindow() const { return mFocusWindow; }
 
-	bool handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons);
+	bool handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down);
 	bool handleWheelEvent(const QPoint &pos, int wheelDelta);
 
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;

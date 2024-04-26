@@ -62,5 +62,4 @@ void QFreeRdpBackingStore::resize(const QSize &size, const QRegion &staticConten
         mImage = QImage(size, QImage::Format_ARGB32_Premultiplied);
 }
 
-
 QT_END_NAMESPACE

@@ -56,7 +56,7 @@ QT += core-private gui-private
 
 equals(QT_MAJOR_VERSION, 5):lessThan(QT_MINOR_VERSION, 8): {
 	QT += platformsupport-private
-} else {
+} else:equals(QT_MAJOR_VERSION, 5) {
 	QT += fontdatabase_support_private eventdispatcher_support_private theme_support_private
 }
 

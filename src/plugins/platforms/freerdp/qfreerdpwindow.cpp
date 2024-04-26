@@ -97,22 +97,14 @@ void QFreeRdpWindow::setBackingStore(QFreeRdpBackingStore *b) {
 }
 
 
-void QFreeRdpWindow::setWindowState(Qt::WindowState state) {
-    qDebug() << "QFreeRdpWindow::setWindowState(" << state << ")";
+void QFreeRdpWindow::setWindowState(Qt::WindowStates state) {
+	qDebug() << "QFreeRdpWindow::setWindowState(" << state << ")";
 
-    switch(state) {
-    case Qt::WindowActive:
+	if (state & Qt::WindowActive)
 		mPlatform->mWindowManager->setFocusWindow(this);
-		break;
-    case Qt::WindowMaximized:
-    case Qt::WindowFullScreen: {
-		QRect r = mPlatform->getScreen()->geometry();
-		setGeometry(r);
-		break;
-    }
-    default:
-    	break;
-	}
+
+	if (state & (Qt::WindowMaximized | Qt::WindowFullScreen))
+		setGeometry(mPlatform->getScreen()->geometry());
 
 	QWindowSystemInterface::handleWindowStateChanged(window(), state);
 	QWindowSystemInterface::flushWindowSystemEvents(); // Required for oldState to work on WindowStateChanged

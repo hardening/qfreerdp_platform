@@ -480,6 +480,7 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mClient(client),
 		mBogusCheckFileDescriptor(0),
 		mLastButtons(Qt::NoButton),
+		mCurrentButton(Qt::NoButton),
 		mKeyTime(0),
 		mSurfaceOutputModeEnabled(false),
 		mNsCodecSupported(false),
@@ -549,6 +550,7 @@ BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *peer = peerContext->rdpPeer;
 	QFreeRdpWindowManager *windowManager = peer->mPlatform->mWindowManager;
+	bool down;
 
 	if (flags & PTR_FLAGS_WHEEL) {
 		int wheelDelta = (flags & 0xff);
@@ -558,10 +560,11 @@ BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16
 		return windowManager->handleWheelEvent(peer->mLastMousePos, wheelDelta);
 	}
 
-	peer->updateMouseButtonsFromFlags(flags, false);
+	peer->updateMouseButtonsFromFlags(flags, down, false);
 
 	peer->mLastMousePos = QPoint(x, y);
-	return windowManager->handleMouseEvent(peer->mLastMousePos, peer->mLastButtons);
+	return windowManager->handleMouseEvent(peer->mLastMousePos, peer->mLastButtons,
+			peer->mCurrentButton, down);
 }
 
 BOOL QFreeRdpPeer::xf_extendedMouseEvent(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*x*/, UINT16 /*y*/) {
@@ -1345,24 +1348,24 @@ bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
 }
 
 
-void QFreeRdpPeer::updateMouseButtonsFromFlags(DWORD flags, bool extended) {
-	Qt::MouseButtons buttons = Qt::NoButton;
+void QFreeRdpPeer::updateMouseButtonsFromFlags(DWORD flags, bool &down, bool extended) {
+	mCurrentButton = Qt::NoButton;
 
 	if(!extended) {
 		if (flags & PTR_FLAGS_BUTTON1)
-			buttons |= Qt::LeftButton;
+			mCurrentButton = Qt::LeftButton;
 		else if (flags & PTR_FLAGS_BUTTON2)
-			buttons |= Qt::RightButton;
+			mCurrentButton = Qt::RightButton;
 		else if (flags & PTR_FLAGS_BUTTON3)
-			buttons |= Qt::MiddleButton;
+			mCurrentButton = Qt::MiddleButton;
 	} else {
 		qWarning("extended mouse button not handled");
 	}
 
-	if (flags & PTR_FLAGS_DOWN)
-		mLastButtons |= buttons;
+	if ((down = (flags & PTR_FLAGS_DOWN)))
+		mLastButtons |= mCurrentButton;
 	else
-		mLastButtons &= (~buttons);
+		mLastButtons &= (~mCurrentButton);
 }
 
 
