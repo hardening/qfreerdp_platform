@@ -949,7 +949,10 @@ bool QFreeRdpPeer::init() {
 	mClient->ContextSize = sizeof(RdpPeerContext);
 	mClient->ContextNew = (psPeerContextNew)rdp_peer_context_new;
 	mClient->ContextFree = (psPeerContextFree)rdp_peer_context_free;
-	freerdp_peer_context_new(mClient);
+
+	int clientFd = mClient->sockfd;
+	if (!freerdp_peer_context_new(mClient))
+		return false;
 
 	RdpPeerContext *peerCtx = (RdpPeerContext *)mClient->context;
 	peerCtx->rdpPeer = this;
@@ -987,7 +990,7 @@ bool QFreeRdpPeer::init() {
 		return false;
 	}
 
-	peerCtx->event = new QSocketNotifier(mClient->sockfd, QSocketNotifier::Read);
+	peerCtx->event = new QSocketNotifier(clientFd, QSocketNotifier::Read);
 	connect(peerCtx->event, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
 
 	HANDLE vcmHandle = WTSVirtualChannelManagerGetEventHandle(mVcm);
