@@ -177,12 +177,17 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
 	QWindowSystemInterface::handleScreenAdded(mScreen);
 
-	// set information on platform
-	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
-	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
-
 	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
+
+char* QFreeRdpPlatform::getListenAddress() const {
+	return mConfig->bind_address;
+}
+
+int QFreeRdpPlatform::getListenPort() const {
+	return mConfig->port;
+}
+
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
 	foreach(QFreeRdpPeer* peer, mPeers) {
@@ -260,6 +265,10 @@ void QFreeRdpPlatform::initialize() {
 		mListener->initialize();
 	}
 
+	// set information on platform
+	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
+	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
+
 	// create Input Context Plugin
 	mInputContext.reset(QPlatformInputContextFactory::create());
 	mWindowManager->initialize();
@@ -300,7 +309,6 @@ void QFreeRdpPlatform::repaint(const QRegion &region) {
 		peer->repaint(region);
 	}
 }
-
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if(mConfig->tls_enabled) {
@@ -347,7 +355,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if (settings->FIPSMode) {
 		flags |= WINPR_SSL_INIT_ENABLE_FIPS;
 	}
-	
+
 	// init SSL
 	winpr_InitializeSSL(flags);
 

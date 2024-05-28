@@ -35,15 +35,16 @@
 WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmColorScheme &theme, const IconResource *closeRes, WmWidget *parent)
 : WmWidget(parent)
 , mWindow(freerdpW)
-, mTopSpacer(new WmSpacer(QSize(5, DECORATION_HEIGHT)))
-, mTopSpacer2(new WmSpacer(QSize(5, DECORATION_HEIGHT)))
-, mTitle(new WmLabel(freerdpW->window()->title(), QFont("time", 10)))
-, mCloseButton(new WmIconButton(closeRes->normalIcon, closeRes->overIcon))
 , mTopContainer(new WmHContainer(this))
 , mEnteredWidget(nullptr)
 , mDirty(true)
 , mContent(nullptr)
 {
+	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
+	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
+	mTitle = new WmLabel(freerdpW->window()->title(), QFont("time", 10), mTopContainer);
+	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, mTopContainer);
+
 	mColors = theme;
 	mTopContainer->setColors(theme);
 	mTopSpacer->setColors(theme);

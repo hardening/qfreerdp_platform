@@ -125,6 +125,7 @@ static void rdp_peer_context_free(freerdp_peer* client, RdpPeerContext* context)
 struct rdp_to_xkb_keyboard_layout {
 	UINT32 rdpLayoutCode;
 	const char *xkbLayout;
+	const char *locale_name;
 };
 
 /* table reversed from
@@ -132,95 +133,95 @@ struct rdp_to_xkb_keyboard_layout {
 static
 struct rdp_to_xkb_keyboard_layout rdp_keyboards[] = {
 
-		{KBD_ARABIC_101, "ara"},
-		{KBD_BULGARIAN, "bg"},
-		{KBD_CHINESE_TRADITIONAL_US, 0},
-		{KBD_CZECH, "cz"},
-		{KBD_DANISH, "dk"},
-		{KBD_GERMAN, "de"},
-		{KBD_GREEK, "gr"},
-		{KBD_US, "us"},
-		{KBD_SPANISH, "es"},
-		{KBD_FINNISH, "fi"},
-		{KBD_FRENCH, "fr"},
-		{KBD_HEBREW, "il"},
-		{KBD_HUNGARIAN, "hu"},
-		{KBD_ICELANDIC, "is"},
-		{KBD_ITALIAN, "it"},
-		{KBD_JAPANESE, "jp"},
-		{KBD_KOREAN, "kr"},
-		{KBD_DUTCH, "nl"},
-		{KBD_NORWEGIAN, "no"},
-		{KBD_POLISH_PROGRAMMERS, 0},
-//		{KBD_PORTUGUESE_BRAZILIAN_ABN0416, 0},
-		{KBD_ROMANIAN, 0},
-		{KBD_RUSSIAN, "ru"},
-		{KBD_CROATIAN, 0},
-		{KBD_SLOVAK, 0},
-		{KBD_ALBANIAN, 0},
-		{KBD_SWEDISH, 0},
-		{KBD_THAI_KEDMANEE, 0},
-		{KBD_TURKISH_Q, 0},
-		{KBD_URDU, 0},
-		{KBD_UKRAINIAN, 0},
-		{KBD_BELARUSIAN, 0},
-		{KBD_SLOVENIAN, 0},
-		{KBD_ESTONIAN, "ee"},
-		{KBD_LATVIAN, 0},
-		{KBD_LITHUANIAN_IBM, 0},
-		{KBD_FARSI, 0},
-		{KBD_VIETNAMESE, 0},
-		{KBD_ARMENIAN_EASTERN, 0},
-		{KBD_AZERI_LATIN, 0},
-		{KBD_FYRO_MACEDONIAN, 0},
-		{KBD_GEORGIAN, 0},
-		{KBD_FAEROESE, 0},
-		{KBD_DEVANAGARI_INSCRIPT, 0},
-		{KBD_MALTESE_47_KEY, 0},
-		{KBD_NORWEGIAN_WITH_SAMI, 0},
-		{KBD_KAZAKH, 0},
-		{KBD_KYRGYZ_CYRILLIC, 0},
-		{KBD_TATAR, 0},
-		{KBD_BENGALI, 0},
-		{KBD_PUNJABI, 0},
-		{KBD_GUJARATI, 0},
-		{KBD_TAMIL, 0},
-		{KBD_TELUGU, 0},
-		{KBD_KANNADA, 0},
-		{KBD_MALAYALAM, 0},
-		{KBD_MARATHI, 0},
-		{KBD_MONGOLIAN_CYRILLIC, 0},
-		{KBD_UNITED_KINGDOM_EXTENDED, 0},
-		{KBD_SYRIAC, 0},
-		{KBD_NEPALI, 0},
-		{KBD_PASHTO, 0},
-		{KBD_DIVEHI_PHONETIC, 0},
-		{KBD_LUXEMBOURGISH, 0},
-		{KBD_MAORI, 0},
-		{KBD_CHINESE_SIMPLIFIED_US, 0},
-		{KBD_SWISS_GERMAN, 0},
-		{KBD_UNITED_KINGDOM, "gb"},
-		{KBD_LATIN_AMERICAN, "latam"},
-		{KBD_BELGIAN_FRENCH, "be"},
-		{KBD_BELGIAN_PERIOD, "be"},
-		{KBD_PORTUGUESE, 0},
-		{KBD_SERBIAN_LATIN, 0},
-		{KBD_AZERI_CYRILLIC, 0},
-		{KBD_SWEDISH_WITH_SAMI, 0},
-		{KBD_UZBEK_CYRILLIC, 0},
-		{KBD_INUKTITUT_LATIN, 0},
-		{KBD_CANADIAN_FRENCH_LEGACY, "fr-legacy"},
-		{KBD_SERBIAN_CYRILLIC, 0},
-		{KBD_CANADIAN_FRENCH, 0},
-		{KBD_SWISS_FRENCH, "ch"},
-		{KBD_BOSNIAN, "unicode"},
-		{KBD_IRISH, 0},
-		{KBD_BOSNIAN_CYRILLIC, 0},
+		{KBD_ARABIC_101, "ara", "ar_MA.UTF-8"},
+		{KBD_BULGARIAN, "bg", "bg_BG.UTF-8"},
+		{KBD_CHINESE_TRADITIONAL_US, 0, 0},
+		{KBD_CZECH, "cz", 0},
+		{KBD_DANISH, "dk", "da_DK.UTF-8"},
+		{KBD_GERMAN, "de", "de_DE.UTF-8"},
+		{KBD_GREEK, "gr", 0},
+		{KBD_US, "us", "en_US.UTF-8"},
+		{KBD_SPANISH, "es", "es_ES.UTF-8"},
+		{KBD_FINNISH, "fi", "fi_FI.UTF-8"},
+		{KBD_FRENCH, "fr", "fr_FR.UTF-8"},
+		{KBD_HEBREW, "il", 0},
+		{KBD_HUNGARIAN, "hu", "hu_HU.UTF-8"},
+		{KBD_ICELANDIC, "is", 0},
+		{KBD_ITALIAN, "it", "it_IT.UTF-8"},
+		{KBD_JAPANESE, "jp", 0},
+		{KBD_KOREAN, "kr", 0},
+		{KBD_DUTCH, "nl", "nl_NL.UTF-8"},
+		{KBD_NORWEGIAN, "no", "no_NO.UTF-8"},
+		{KBD_POLISH_PROGRAMMERS, 0, 0},
+//		{KBD_PORTUGUESE_BRAZILIAN_ABN0416, 0, 0},
+		{KBD_ROMANIAN, 0, 0},
+		{KBD_RUSSIAN, "ru", "ru_RU.UTF-8"},
+		{KBD_CROATIAN, 0, 0},
+		{KBD_SLOVAK, 0, 0},
+		{KBD_ALBANIAN, 0, 0},
+		{KBD_SWEDISH, 0, 0},
+		{KBD_THAI_KEDMANEE, 0, 0},
+		{KBD_TURKISH_Q, 0, 0},
+		{KBD_URDU, 0, 0},
+		{KBD_UKRAINIAN, 0, 0},
+		{KBD_BELARUSIAN, 0, 0},
+		{KBD_SLOVENIAN, 0, 0},
+		{KBD_ESTONIAN, "ee", 0},
+		{KBD_LATVIAN, 0, 0},
+		{KBD_LITHUANIAN_IBM, 0, 0},
+		{KBD_FARSI, 0, 0},
+		{KBD_VIETNAMESE, 0, 0},
+		{KBD_ARMENIAN_EASTERN, 0, 0},
+		{KBD_AZERI_LATIN, 0, 0},
+		{KBD_FYRO_MACEDONIAN, 0, 0},
+		{KBD_GEORGIAN, 0, 0},
+		{KBD_FAEROESE, 0, 0},
+		{KBD_DEVANAGARI_INSCRIPT, 0, 0},
+		{KBD_MALTESE_47_KEY, 0, 0},
+		{KBD_NORWEGIAN_WITH_SAMI, 0, 0},
+		{KBD_KAZAKH, 0, 0},
+		{KBD_KYRGYZ_CYRILLIC, 0, 0},
+		{KBD_TATAR, 0, 0},
+		{KBD_BENGALI, 0, 0},
+		{KBD_PUNJABI, 0, 0},
+		{KBD_GUJARATI, 0, 0},
+		{KBD_TAMIL, 0, 0},
+		{KBD_TELUGU, 0, 0},
+		{KBD_KANNADA, 0, 0},
+		{KBD_MALAYALAM, 0, 0},
+		{KBD_MARATHI, 0, 0},
+		{KBD_MONGOLIAN_CYRILLIC, 0, 0},
+		{KBD_UNITED_KINGDOM_EXTENDED, 0, 0},
+		{KBD_SYRIAC, 0, 0},
+		{KBD_NEPALI, 0, 0},
+		{KBD_PASHTO, 0, 0},
+		{KBD_DIVEHI_PHONETIC, 0, 0},
+		{KBD_LUXEMBOURGISH, 0, 0},
+		{KBD_MAORI, 0, 0},
+		{KBD_CHINESE_SIMPLIFIED_US, 0, 0},
+		{KBD_SWISS_GERMAN, 0, 0},
+		{KBD_UNITED_KINGDOM, "gb", "en_GB.UTF-8"},
+		{KBD_LATIN_AMERICAN, "latam", "es_MX.UTF-8"},
+		{KBD_BELGIAN_FRENCH, "be", "fr_BE.UTF-8"},
+		{KBD_BELGIAN_PERIOD, "be", "fr_BE.UTF-8"},
+		{KBD_PORTUGUESE, 0, 0},
+		{KBD_SERBIAN_LATIN, 0, 0},
+		{KBD_AZERI_CYRILLIC, 0, 0},
+		{KBD_SWEDISH_WITH_SAMI, 0, 0},
+		{KBD_UZBEK_CYRILLIC, 0, 0},
+		{KBD_INUKTITUT_LATIN, 0, 0},
+		{KBD_CANADIAN_FRENCH_LEGACY, "fr-legacy", "fr_CA.UTF-8"},
+		{KBD_SERBIAN_CYRILLIC, 0, 0},
+		{KBD_CANADIAN_FRENCH, 0, 0},
+		{KBD_SWISS_FRENCH, "ch", "fr_CH.UTF-8"},
+		{KBD_BOSNIAN, "unicode", 0},
+		{KBD_IRISH, 0, 0},
+		{KBD_BOSNIAN_CYRILLIC, 0, 0},
 
-		{0x0000000, DEFAULT_KBD_LANG} // default
+		{0x0000000, DEFAULT_KBD_LANG, 0} // default
 };
 
-static void sendKey(QWindow *tlw, ulong timestamp, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers, quint32 nativeScanCode, 
+static void sendKey(QWindow *tlw, ulong timestamp, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers, quint32 nativeScanCode,
 			quint32 nativeVirtualKey, quint32 nativeModifiers, const QString& text = QString(), bool autorep = false, ushort count = 1) {
 	QPlatformInputContext *inputContext = QGuiApplicationPrivate::platformIntegration()->inputContext();
 	bool filtered = false;
@@ -230,7 +231,7 @@ static void sendKey(QWindow *tlw, ulong timestamp, QEvent::Type type, int key, Q
 		event.setTimestamp(timestamp);
 		filtered = inputContext->filterEvent(&event);
 	}
-	
+
 	if (!filtered) {
 		QWindowSystemInterface::handleExtendedKeyEvent(tlw, timestamp, type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers,
 					text, autorep, count);
@@ -434,8 +435,6 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 
 #endif
 
-
-
 QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mPlatform(platform),
 		mClient(client),
@@ -457,6 +456,8 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		, mXkbContext(0)
 		, mXkbKeymap(0)
 		, mXkbState(0)
+		, mXkbComposeState(0)
+		, mXkbComposeTable(0)
 		, mCapsLockModIndex(0)
 		, mNumLockModIndex(0)
 		, mScrollLockModIndex(0)
@@ -504,6 +505,13 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	freerdp_peer_context_free(mClient);
 	freerdp_peer_free(mClient);
 	mPlatform->unregisterPeer(this);
+
+#ifndef NO_XKB_SUPPORT
+	if (mXkbState) xkb_state_unref(mXkbState);
+	if (mXkbContext) xkb_context_unref(mXkbContext);
+	if (mXkbComposeTable) xkb_compose_table_unref(mXkbComposeTable);
+	if (mXkbComposeState) xkb_compose_state_unref(mXkbComposeState);
+#endif
 }
 
 BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
@@ -715,7 +723,7 @@ BOOL QFreeRdpPeer::detectDisplaySettings(freerdp_peer* client) {
 		// if (settings->OsMajorType == OSMAJORTYPE_WINDOWS) {
 		// 	return configureOptimizeMode(settings);
 		// }
-		
+
 		// else -> legacy mode
 		return configureDisplayLegacyMode(settings);
 	}
@@ -754,16 +762,18 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		qWarning("Can not detect correctly settings");
 		return FALSE;
 	}
-	
+
 
 #ifndef NO_XKB_SUPPORT
 	memset(&xkbRuleNames, 0, sizeof(xkbRuleNames));
+	const char *locale_name = NULL;
 	xkbRuleNames.rules = "evdev";
 	if(settings->KeyboardType <= 7)
 		xkbRuleNames.model = rdp_keyboard_types[settings->KeyboardType];
 	for(int i = 0; rdp_keyboards[i].rdpLayoutCode; i++) {
 		if(rdp_keyboards[i].rdpLayoutCode == settings->KeyboardLayout) {
 			xkbRuleNames.layout = rdp_keyboards[i].xkbLayout;
+			locale_name = rdp_keyboards[i].locale_name;
 			break;
 		}
 	}
@@ -799,6 +809,20 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		rdpPeer->mCapsLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, XKB_MOD_NAME_CAPS);
 		rdpPeer->mNumLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "Mod2");
 		rdpPeer->mScrollLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "ScrollLock");
+	}
+	if (locale_name) {
+	    qDebug("using locale %s", locale_name);
+	    rdpPeer->mXkbComposeTable = xkb_compose_table_new_from_locale(rdpPeer->mXkbContext, locale_name, XKB_COMPOSE_COMPILE_NO_FLAGS);
+	    if (rdpPeer->mXkbComposeTable) {
+		rdpPeer->mXkbComposeState = xkb_compose_state_new(rdpPeer->mXkbComposeTable, XKB_COMPOSE_STATE_NO_FLAGS);
+		if (!rdpPeer->mXkbComposeState) {
+		    qWarning() << "failed to create compose state, dead keys will not work";
+		}
+	    } else {
+		qWarning() << "failed to load compose table for locale " << locale_name;
+	    }
+	} else {
+	    qWarning() << "missing locale, dead keys will not work";
 	}
 #endif
 
@@ -925,7 +949,7 @@ void QFreeRdpPeer::init_display(freerdp_peer* client) {
 	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
 	rdpSettings* settings = client->context->settings;
 
-	// set screen geometry 
+	// set screen geometry
 	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
 	//TODO: see the user's monitor layout
 	QRect currentGeometry = screen->geometry();
@@ -1112,7 +1136,7 @@ void qimage_subrect(const QRect &rect, const QImage *img, BYTE *dest, bool flip_
 			memcpy(dest, src, lengthtoCopy);
 	}
 
-	
+
 }
 
 
@@ -1120,7 +1144,7 @@ void QFreeRdpPeer::repaint_raw(const QRegion &region) {
 
 	QVector<QRect> rects;
 	for (const QRect& boundingRect: region) {
-		
+
 		// divide boundingRect in several rects
 		int subRectWidth = 64;
 		int subRectHeight = 64;
@@ -1358,8 +1382,35 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	if (xsym == XKB_KEY_NoSymbol) {
 		return;
 	}
+	QString text;
+	xkb_compose_status status;
+	if (mXkbComposeState && isDown) {
+	    xkb_compose_state_feed(mXkbComposeState, xsym);
+	    status = xkb_compose_state_get_status(mXkbComposeState);
+	} else {
+	    status = XKB_COMPOSE_NOTHING;
+	}
+	switch (status) {
+	    case XKB_COMPOSE_NOTHING:
+		// composition does not affect this event
+		text = keysymToUnicode(xsym);
+		break;;
+	    case XKB_COMPOSE_CANCELLED: // sequence has no associated event
+		xkb_compose_state_reset(mXkbComposeState);
+		/* eat this event */
+		return;
+	    case XKB_COMPOSE_COMPOSING: // waiting for next key
+		/* eat this event */
+		return;
+	    case XKB_COMPOSE_COMPOSED:
+		char buf[32];
+		xkb_compose_state_get_utf8(mXkbComposeState, buf, sizeof(buf));
+		text = QString::fromUtf8(buf);
+		qDebug() << "composed " << text;
+		xkb_compose_state_reset(mXkbComposeState);
+	}
 
-	//qWarning("%s: vkCode=0x%x scanCode=0x%x isDown=%x", __func__, vk_code, scancode, isDown);
+	/* qWarning("%s: vkCode=0x%x scanCode=0x%x isDown=%x text=%s", __func__, vk_code, scancode, isDown, text.toUtf8().constData()); */
 
 	// check if windows has focus
 	QFreeRdpWindow *focusWindow = mPlatform->mWindowManager->getFocusWindow();
@@ -1372,9 +1423,8 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState);
 	QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
 
-	QString text = keysymToUnicode(xsym);
 	int count = text.size();
-    text.truncate(count);
+	text.truncate(count);
 
 	uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
 
@@ -1424,8 +1474,8 @@ bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::Curs
 		lpointer->cacheIndex = cacheIndex;
 		lpointer->width = largePointer->width;
 		lpointer->height = largePointer->height;
-		lpointer->hotSpotX = largePointer->hotSpotX;
-		lpointer->hotSpotY = largePointer->hotSpotY;
+		lpointer->xPos = largePointer->hotSpotX;
+		lpointer->yPos = largePointer->hotSpotY;
 		lpointer->xorMaskData = largePointer->xorMaskData;
 		lpointer->lengthXorMask = largePointer->lengthXorMask;
 		lpointer->andMaskData = largePointer->andMaskData;
@@ -1479,7 +1529,7 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 
 	// use bitmap update
 	BITMAP_UPDATE *bitmapUpdate = (BITMAP_UPDATE*) malloc(sizeof(BITMAP_UPDATE));
-	
+
 	bitmapUpdate->skipCompression = false;
 
 	// set bitmap rectangles number
@@ -1676,7 +1726,7 @@ void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
 				// get bytes in cmd.bitmapData (vertical flip)
 				qimage_subrect(subRect, src, cmd.bmp.bitmapData, true);
 			}
-			
+
 			update->SurfaceBits(mClient->context, &cmd);
 
 			free(cmd.bmp.bitmapData);

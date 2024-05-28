@@ -42,8 +42,6 @@ class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 class QFreeRdpClipboard;
 
-
-/** @brief */
 enum DisplayMode {
 	UNKNOWN = 0,
 	LEGACY = 1,
@@ -51,7 +49,6 @@ enum DisplayMode {
 	OPTIMIZE = 3
 };
 
-/** @brief */
 typedef enum {
 	ICON_RESOURCE_CLOSE_BUTTON
 } IconResourceType;
@@ -138,6 +135,16 @@ public:
 	/** @return */
 	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
 
+	/**
+	 * @return listen address
+	 */
+	char* getListenAddress() const;
+
+	/**
+	 * @return listen port
+	 */
+	int getListenPort() const;
+
 	/** registers a RDP peer
 	 * @param peer
 	 */
@@ -181,10 +188,9 @@ protected:
     QFreeRdpScreen *mScreen;
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;
-	QList<QFreeRdpPeer *> mPeers;
 	bool mResourcesLoaded;
 	QMap<IconResourceType, IconResource*> mResources;
-
+	QList<QFreeRdpPeer *> mPeers;
 };
 QT_END_NAMESPACE
 

@@ -8,7 +8,7 @@ the original code.
 ## Requirements
 
 * Qt5 development librairies (>= 5.12.8)
-* libfreerdp (>= 2.4.1)
+* rubycat-libfreerdp (>= 2.100.20230321)
 
 ## Set up dev environment
 ```
@@ -19,8 +19,11 @@ $ export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
 
 ## Install requirements (for Ubuntu 20.04)
 
-### system libraries
+### system libraries
     apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev libudev-dev libfontconfig1-dev libfreetype6-dev
+
+### rubycat-libfreerdp
+	see freerdp project
 
 ## Installation
 

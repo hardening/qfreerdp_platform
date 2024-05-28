@@ -6,7 +6,7 @@ xkb_symbols "windows" {
 
     key <TLDE>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [     twosuperior,     twosuperior, leftdoublequotemark, rightdoublequotemark ] };
     key <AE01>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [       ampersand,               1,          dead_acute,       periodcentered ] };
-    key <AE02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          eacute,               2,          asciitilde,               Eacute ] };
+    key <AE02>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [          eacute,               2,          dead_tilde,               Eacute ] };
     key <AE03>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [        quotedbl,               3,          numbersign,              cedilla ] };
     key <AE04>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [      apostrophe,               4,           braceleft,                acute ] };
     key <AE05>  { type[group1] = "FOUR_LEVEL_SEMIALPHABETIC", [       parenleft,               5,         bracketleft,            diaeresis ] };

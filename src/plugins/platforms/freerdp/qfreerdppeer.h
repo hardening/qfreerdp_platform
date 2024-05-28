@@ -33,6 +33,7 @@
 
 #ifndef NO_XKB_SUPPORT
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-compose.h>
 #endif
 
 #include "qfreerdpcompositor.h"
@@ -157,6 +158,8 @@ protected:
     struct xkb_context *mXkbContext;
     struct xkb_keymap *mXkbKeymap;
     struct xkb_state *mXkbState;
+    struct xkb_compose_state *mXkbComposeState;
+    struct xkb_compose_table *mXkbComposeTable;
 
 	xkb_mod_index_t mCapsLockModIndex;
 	xkb_mod_index_t mNumLockModIndex;
