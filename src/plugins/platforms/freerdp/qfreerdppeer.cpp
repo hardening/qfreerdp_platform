@@ -240,44 +240,50 @@ static void sendKey(QWindow *tlw, ulong timestamp, QEvent::Type type, int key, Q
 
 static QStringList MODIFIERS = QStringList() << "Shift" << "Control" << "Alt" << "ISO_Level3" << "Super" << "Mod1" << "Mod4";
 
+// This function checks both for active XKB modifiers, but also consumed
+// modifiers (already used as shortcuts/combinations inside XKB), as defined
+// here:
+// - https://xkbcommon.org/doc/current/group__state.html
+// - https://github.com/xkbcommon/libxkbcommon/issues/310
 //
-// these part was adapted from QtWayland, the original code can be retrieved
-// from the git repository https://qt.gitorious.org/qt/qtwayland, files are:
+// If we do not catch those consumed mods, Qt will see them as still active and
+// mess with the use of Ctrl+Alt as AltGr from our windows compatibility
+// keymaps.
+//
+// Also, we use XKB_CONSUMED_MODE_GTK in order to avoid ignoring modifiers
+// in situations where they should remain available.
+// -
+// https://xkbcommon.org/doc/current/group__state.html#ga66c3ae7ebaf4ccd60e5dab61dc1c29fb
+static bool isXkbModifierSet(xkb_state *state, xkb_keymap *keymap, const char *mod, xkb_keycode_t key) {
+	static const xkb_state_component cstate = xkb_state_component(XKB_STATE_DEPRESSED | XKB_STATE_LATCHED);
+	xkb_mod_index_t modIndex = xkb_keymap_mod_get_index(keymap, mod);
+
+	// We handle missing modifiers (return value: -1) as false: modifier inactive/not consumed
+	bool isModActive = !!xkb_state_mod_name_is_active(state, mod, cstate);
+	bool isModConsumed = !!xkb_state_mod_index_is_consumed2(state, key, modIndex, XKB_CONSUMED_MODE_GTK);
+
+	return isModActive && !isModConsumed;
+}
+
+// this part was originally adapted from QtWayland, the original code can be
+// retrieved from the git repository https://qt.gitorious.org/qt/qtwayland,
+// files are:
 //	* src/plugins/platforms/wayland_common/qwaylandinputdevice.cpp
 //	* src/plugins/platforms/wayland_common/qwaylandkey.cpp
-//
 static Qt::KeyboardModifiers translateModifiers(xkb_state *state, xkb_keycode_t key)
 {
     Qt::KeyboardModifiers ret = Qt::NoModifier;
-    xkb_state_component cstate = xkb_state_component(XKB_STATE_DEPRESSED | XKB_STATE_LATCHED);
     xkb_keymap* keymap = xkb_state_get_keymap(state);
 
-    // Here we check both for active XKB modifiers, but also if they have been
-    // consumed (already used as shortcuts/combinations inside XKB), as defined
-    // here:
-    // - https://xkbcommon.org/doc/current/group__state.html
-    // - https://github.com/xkbcommon/libxkbcommon/issues/310
-    //
-    // If we do not catch those consumed mods, Qt will catch them and mess with
-    // the use of Ctrl+Alt as AltGr from our windows compatibility keymaps.
-    //
-    // Also, we use XKB_CONSUMED_MODE_GTK in order to avoid ignoring modifiers
-    // in situations where they should remain available.
-    // - https://xkbcommon.org/doc/current/group__state.html#ga66c3ae7ebaf4ccd60e5dab61dc1c29fb
-    if (xkb_state_mod_name_is_active(state, "Shift", cstate) &&
-            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Shift"), XKB_CONSUMED_MODE_GTK))
+    if (isXkbModifierSet(state, keymap, "Shift", key))
         ret |= Qt::ShiftModifier;
-    if (xkb_state_mod_name_is_active(state, "Control", cstate) &&
-            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Control"), XKB_CONSUMED_MODE_GTK))
+    if (isXkbModifierSet(state, keymap, "Control", key))
         ret |= Qt::ControlModifier;
-    if (xkb_state_mod_name_is_active(state, "Alt", cstate) &&
-            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Alt"), XKB_CONSUMED_MODE_GTK))
+    if (isXkbModifierSet(state, keymap, "Alt", key))
         ret |= Qt::AltModifier;
-    if (xkb_state_mod_name_is_active(state, "Mod1", cstate) &&
-            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Mod1"), XKB_CONSUMED_MODE_GTK))
+    if (isXkbModifierSet(state, keymap, "Mod1", key))
         ret |= Qt::AltModifier;
-    if (xkb_state_mod_name_is_active(state, "Mod4", cstate) &&
-            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Mod4"), XKB_CONSUMED_MODE_GTK))
+    if (isXkbModifierSet(state, keymap, "Mod4", key))
         ret |= Qt::MetaModifier;
 
     return ret;
@@ -441,9 +447,9 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 	}
 	qDebug("Using windows layout: %s", xkbRuleNames->layout);
 
-	// Using our custom rules files (xkb/rules/rubycat) to make the custom
+	// Using our custom rules files (xkb/rules/qfreerdp) to make the custom
 	// type needed by our layouts accessible.
-	xkbRuleNames->rules = "rubycat";
+	xkbRuleNames->rules = "qfreerdp";
 
 	if (xkbRuleNames->layout == QString("fr")) {
 		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT;
@@ -595,9 +601,10 @@ BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 
 	return TRUE;
 }
 
-BOOL QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 flags, UINT16 code)
+BOOL QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*code*/)
 {
-	qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
+	// qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
+	qDebug("Client sent a unicode keyboard event: UNSUPPORTED\n");
 	return TRUE;
 }
 
@@ -1451,8 +1458,8 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 
 	uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
 
-	qDebug("%s: vkCode=0x%x scanCode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x",
-			__func__, vk_code, scancode, flags, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
+	// qDebug("%s: vkCode=0x%x scanCode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x",
+	// 		__func__, vk_code, scancode, flags, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
 
 	// send key
 	sendKey(focusWindow->window(), ++mKeyTime, type, qtsym, modifiers, scancode, xsym, 0,text);
@@ -1776,7 +1783,7 @@ xkb_keysym_t QFreeRdpPeer::getXkbSymbol(const quint32 &scanCode, const bool &isD
 		return sym;
 	}
 
-	qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer);
+	// qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer);
 
 	// check if symbol is a known modifier
 	//
