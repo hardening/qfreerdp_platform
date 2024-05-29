@@ -609,13 +609,15 @@ BOOL QFreeRdpPeer::xf_refresh_rect(rdpContext *context, BYTE count, const RECTAN
 	// get RDP peer
 	RdpPeerContext *peerCtx = (RdpPeerContext *)context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
+	QRegion refreshRegion;
 
-	// repaint rect areas
+	// collect rect areas for painting
 	for(int i = 0; i < count; i++) {
 		RECTANGLE_16 rect = areas[i];
-		QRect refreshRect(rect.left, rect.top, rect.right, rect.bottom);
-		rdpPeer->repaint(QRegion(refreshRect));
+		refreshRegion += QRect(rect.left, rect.top, rect.right, rect.bottom);
 	}
+
+	rdpPeer->repaint(refreshRegion);
 
 	return TRUE;
 }
@@ -1114,16 +1116,20 @@ void QFreeRdpPeer::channelTraffic(int) {
 
 
 void QFreeRdpPeer::repaint(const QRegion &region) {
-	mDirtyRegion += region;
-
 	if(!mFlags.testFlag(PEER_ACTIVATED) ||
 	   mFlags.testFlag(PEER_OUTPUT_DISABLED) ||
 	   mFlags.testFlag(PEER_WAITING_DYNVC) ||
 	   mFlags.testFlag(PEER_WAITING_GRAPHICS))
 		return;
 
-	//qDebug() << "QFreeRdpPeer::repaint(" << mDirtyRegion << ")";
+	// First we compute the minimum area that really changed from Qt's updates,
+	// _then_ we add the region requested by the RDP client, as we don't want
+	// to send back incomplete updates.
 	QRegion dirty = mCompositor.qtToRdpDirtyRegion(mDirtyRegion);
+	dirty += region;
+
+	// qDebug() << "QFreeRdpPeer::repaint(" << dirty << ")";
+
 	switch(mRenderMode) {
 	case RENDER_BITMAP_UPDATES:
 		repaint_raw(dirty);

@@ -97,7 +97,9 @@ protected:
 	static BOOL xf_input_synchronize_event(rdpInput *input, UINT32 flags);
 	static BOOL xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT8 code);
 	static BOOL xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
+	// [MS-RDPBGGR] 2.2.11.2 Client Refresh Rect PDU
 	static BOOL xf_refresh_rect(rdpContext *context, BYTE count, const RECTANGLE_16* areas);
+	// [MS-RDPBGGR] 2.2.11.2 Client Suppress Output PDU
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	static BOOL xf_surface_frame_acknowledge(rdpContext* context, UINT32 frameId);
 
