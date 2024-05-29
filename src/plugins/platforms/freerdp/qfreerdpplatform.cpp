@@ -68,7 +68,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	egfx_enabled(true),
 	secrets_file(nullptr),
 	screenSz(800, 600),
-	displayMode(DisplayMode::AUTODETECT)
+	displayMode(DisplayMode::AUTODETECT),
+	theme{Qt::white, Qt::black, QFont("time", 10)}
 {
 	QString subVal;
 	bool ok = true;
@@ -130,6 +131,25 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			if(!secrets_file) {
 				qWarning() << "invalid secrets key" << subVal;
 			}
+		} else if(param.startsWith(QLatin1String("fg-color="))) {
+			subVal = param.mid(strlen("fg-color="));
+			if(QColor::isValidColor(subVal)) {
+				theme.frontColor.setNamedColor(subVal);
+			} else {
+				qWarning() << "invalid foreground color" << subVal;
+			}
+		} else if(param.startsWith(QLatin1String("bg-color="))) {
+			subVal = param.mid(strlen("bg-color="));
+			if(QColor::isValidColor(subVal)) {
+				theme.backColor.setNamedColor(subVal);
+			} else {
+				qWarning() << "invalid background color" << subVal;
+			}
+		} else if(param.startsWith(QLatin1String("font="))) {
+			subVal = param.mid(strlen("font="));
+			// There is no error to catch here, Qt just falls back to another
+			// font if it cannot load the one requested
+			theme.font.setFamily(subVal);
 		} else if(param == "noegfx") {
 			qDebug("disabling egfx");
 			egfx_enabled = false;
@@ -428,3 +448,6 @@ const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
 	return *it;
 }
 
+const WmTheme& QFreeRdpPlatform::getTheme() {
+	return mConfig->theme;
+}

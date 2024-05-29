@@ -25,11 +25,10 @@
 #include <QPainter>
 #include <QDebug>
 
-WmLabel::WmLabel(const QString &title, const QFont &font, WmWidget *parent)
-: WmWidget(parent)
+WmLabel::WmLabel(const QString &title, const WmTheme& theme, WmWidget *parent)
+: WmWidget(theme, parent)
 , mTitle(title)
-, mFont(font)
-, mFontMetrics(mFont)
+, mFontMetrics(theme.font)
 {
 	mSize = mFontMetrics.boundingRect(title.length() ? title : " ").size();
 }
@@ -45,10 +44,10 @@ void WmLabel::handleResize() {
 }
 
 void WmLabel::repaint(QPainter &painter, const QPoint &pos) {
-	painter.fillRect(QRect(pos + mPos, size()), mColors.backColor);
+	painter.fillRect(QRect(pos + mPos, size()), mTheme.backColor);
 
-	painter.setFont(mFont);
-	painter.setPen(mColors.frontColor);
+	painter.setFont(mTheme.font);
+	painter.setPen(mTheme.frontColor);
 
 	QRect renderedRect = mFontMetrics.boundingRect(mTitle);
 	int y = (mSize.height() + mFontMetrics.height()/2)/2;

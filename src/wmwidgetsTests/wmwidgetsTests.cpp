@@ -38,9 +38,10 @@ int main(int argc, char *argv[]) {
 	QImage img(QSize(1024, 768), QImage::Format_ARGB32);
 	QPainter painter(&img);
 
-	QFont font("time", 15);
-	font.setBold(true);
-	WmLabel label("the title with pop's", font);
+	WmTheme backRed = { Qt::white, Qt::red, QFont("time", 15, QFont::Bold)};
+	WmTheme backGreen = { Qt::white, Qt::green, QFont("time", 15, QFont::Bold)};
+
+	WmLabel label("the title with pop's", backRed);
 	label.setSize(QSize(300, 30));
 	label.setLocalPosition(QPoint(10, 20));
 
@@ -48,24 +49,19 @@ int main(int argc, char *argv[]) {
 	img.save("/tmp/wmwidgets-label.png", "PNG", 100);
 
 	/* HContainer */
-	WmColorScheme backRed = { Qt::white, Qt::red};
-	WmColorScheme backGreen = { Qt::white, Qt::green};
-
-	WmHContainer hcontainer;
-	hcontainer.setColors(backGreen);
+	WmHContainer hcontainer(backGreen);
 	hcontainer.setSize(QSize(600, 30));
 
-	WmSpacer spacer(QSize(30, 30));
-	spacer.setColors(backRed);
+	WmSpacer spacer(QSize(30, 30), backRed);
 	hcontainer.push(&spacer);
 
 	hcontainer.push(&label, WMWIDGET_SIZEPOLICY_EXPAND);
 
 	QImage imgClose(":/wmwidgetsTests/sample-icon.png");
-	WmIconButton button(&imgClose, &imgClose);
+	WmIconButton button(&imgClose, &imgClose, backRed);
 	hcontainer.push(&button);
 
-	WmSpacer spacer2(QSize(5, 30));
+	WmSpacer spacer2(QSize(5, 30), backRed);
 	hcontainer.push(&spacer2);
 
 	/*hcontainer.repaint(painter, QPoint(0, 0));

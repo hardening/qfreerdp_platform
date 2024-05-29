@@ -82,7 +82,6 @@ protected:
 
     bool mDecorate;
     WmWindowDecoration *mDecorations;
-    WmColorScheme mColorTheme;
 };
 
 QT_END_NAMESPACE

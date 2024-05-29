@@ -49,9 +49,6 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
 	mScreen = QPlatformScreen::platformScreenForWindow(window);
 	qDebug() << "QFreeRdpWindow ctor(" << mWinId << ", type=" << window->type() << ")";
 
-	// Rubycat color scheme (#efefef, #c30e32)
-	mColorTheme = {QColor(0xef, 0xef, 0xef), QColor(0xc3, 0x0e, 0x32)};
-
 	// adapt window position
 	switch (window->type()) {
 	case Qt::Dialog:
@@ -72,7 +69,7 @@ void QFreeRdpWindow::setDecorate(bool active)
 		return;
 
 	if (active) {
-		mDecorations = new WmWindowDecoration(this, mColorTheme, mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
+		mDecorations = new WmWindowDecoration(this, mPlatform->getTheme(), mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
 
 		setGeometry(
 				geometry().adjusted(BORDERS_SIZE, TOP_BAR_SIZE, -BORDERS_SIZE, -BORDERS_SIZE)

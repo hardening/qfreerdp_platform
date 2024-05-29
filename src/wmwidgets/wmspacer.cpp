@@ -25,8 +25,8 @@
 #include <QPainter>
 #include <QDebug>
 
-WmSpacer::WmSpacer(const QSize &size, WmWidget *parent)
-: WmWidget(parent)
+WmSpacer::WmSpacer(const QSize &size, const WmTheme& theme, WmWidget *parent)
+: WmWidget(theme, parent)
 {
 	mMinimumSize = mMaximumSize = mSize = size;
 }
@@ -34,5 +34,5 @@ WmSpacer::WmSpacer(const QSize &size, WmWidget *parent)
 void WmSpacer::repaint(QPainter &painter, const QPoint &pos) {
 	QRect toFill(pos + mPos, mSize);
 	//qDebug() << "WmSpacer toFill=" << toFill << "color=" << mColors.backColor;
-	painter.fillRect(toFill, mColors.backColor);
+	painter.fillRect(toFill, mTheme.backColor);
 }

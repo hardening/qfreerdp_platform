@@ -32,27 +32,18 @@
 #define DECORATION_HEIGHT 30
 #define BORDERS_SIZE 2
 
-WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmColorScheme &theme, const IconResource *closeRes, WmWidget *parent)
-: WmWidget(parent)
+WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &theme, const IconResource *closeRes, WmWidget *parent)
+: WmWidget(theme, parent)
 , mWindow(freerdpW)
-, mTopContainer(new WmHContainer(this))
+, mTopContainer(new WmHContainer(theme, this))
 , mEnteredWidget(nullptr)
 , mDirty(true)
 , mContent(nullptr)
 {
-	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
-	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
-	// TODO use the Montserrat font as mandated by Rubycat's
-	// visual identity (once running on Ubuntu 24)
-	mTitle = new WmLabel(freerdpW->window()->title(), QFont("time", 10), mTopContainer);
-	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, mTopContainer);
-
-	mColors = theme;
-
-	mTopContainer->setColors(theme);
-	mTopSpacer->setColors(theme);
-	mTopSpacer2->setColors(theme);
-	mTitle->setColors(theme);
+	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
+	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
+	mTitle = new WmLabel(freerdpW->window()->title(), theme, mTopContainer);
+	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, theme, mTopContainer);
 
 
 	/* create the top border :
@@ -99,7 +90,7 @@ void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 void WmWindowDecoration::handleResize() {
 	delete mContent;
 	mContent = new QImage(mSize, QImage::Format_ARGB32);
-	mContent->fill(mColors.backColor);
+	mContent->fill(mTheme.backColor);
 	mTopContainer->setSize(QSize(mSize.width(), DECORATION_HEIGHT));
 }
 

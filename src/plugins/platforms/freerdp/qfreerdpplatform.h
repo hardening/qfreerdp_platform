@@ -31,6 +31,8 @@
 #include <freerdp/listener.h>
 #include <freerdp/pointer.h>
 
+#include <wmwidgets/wmwidget.h>
+
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpListener;
@@ -85,6 +87,7 @@ struct QFreeRdpPlatformConfig {
 
 	QSize screenSz;
 	DisplayMode displayMode;
+	WmTheme theme;
 };
 
 
@@ -173,6 +176,7 @@ public:
 	void setPointer(const POINTER_LARGE_UPDATE *pointer, Qt::CursorShape newShape);
 
 	const IconResource *getIconResource(IconResourceType rtype);
+	const WmTheme& getTheme();
 
 protected:
 	bool loadResources();

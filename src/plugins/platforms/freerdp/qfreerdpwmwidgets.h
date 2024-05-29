@@ -45,7 +45,7 @@ class QFreeRdpWindow;
 class WmWindowDecoration : public WmWidget {
 	Q_OBJECT
 public:
-	WmWindowDecoration(QFreeRdpWindow *w, const WmColorScheme &theme, const IconResource *closeIcons,
+	WmWindowDecoration(QFreeRdpWindow *w, const WmTheme &theme, const IconResource *closeIcons,
 			WmWidget *parent = nullptr);
 	~WmWindowDecoration();
 
