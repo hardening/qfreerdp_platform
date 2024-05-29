@@ -25,6 +25,8 @@
 
 #include <qpa/qplatformwindow.h>
 
+#include <wmwidgets/wmwidget.h>
+
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;
@@ -80,6 +82,7 @@ protected:
 
     bool mDecorate;
     WmWindowDecoration *mDecorations;
+    WmColorScheme mColorTheme;
 };
 
 QT_END_NAMESPACE

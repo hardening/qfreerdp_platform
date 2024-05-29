@@ -65,7 +65,6 @@ public slots:
 
 protected:
 	QFreeRdpWindow *mWindow;
-	WmColorScheme mColorTheme;
 	WmSpacer *mTopSpacer;
 	WmSpacer *mTopSpacer2;
 	WmLabel *mTitle;

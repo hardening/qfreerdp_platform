@@ -42,10 +42,13 @@ WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmColorSc
 {
 	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
 	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), mTopContainer);
+	// TODO use the Montserrat font as mandated by Rubycat's
+	// visual identity (once running on Ubuntu 24)
 	mTitle = new WmLabel(freerdpW->window()->title(), QFont("time", 10), mTopContainer);
 	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, mTopContainer);
 
 	mColors = theme;
+
 	mTopContainer->setColors(theme);
 	mTopSpacer->setColors(theme);
 	mTopSpacer2->setColors(theme);
@@ -96,6 +99,7 @@ void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 void WmWindowDecoration::handleResize() {
 	delete mContent;
 	mContent = new QImage(mSize, QImage::Format_ARGB32);
+	mContent->fill(mColors.backColor);
 	mTopContainer->setSize(QSize(mSize.width(), DECORATION_HEIGHT));
 }
 
