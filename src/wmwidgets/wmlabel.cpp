@@ -49,9 +49,13 @@ void WmLabel::repaint(QPainter &painter, const QPoint &pos) {
 	painter.setFont(mTheme.font);
 	painter.setPen(mTheme.frontColor);
 
+	// Compute the baseline height to vertically center the text according to
+	// the cap height (typically the height of 'flat' capital letters such as
+	// I, H, or M). The `+ 1` is here to round up the division and so bias the
+	// text position down for a more aesthetically pleasing result
+	int y = (mSize.height() + mFontMetrics.capHeight() + 1) / 2;
 	QRect renderedRect = mFontMetrics.boundingRect(mTitle);
-	int y = (mSize.height() + mFontMetrics.height()/2)/2;
-	QPoint dest((mSize.width() - renderedRect.width()) / 2, /*mSize.height() + renderedRect.top() / 2*/ y);
+	QPoint dest((mSize.width() - renderedRect.width()) / 2, y);
 	painter.drawText(pos + mPos + dest, mTitle);
 
 #ifdef DEBUG_LABEL
