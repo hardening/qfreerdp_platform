@@ -66,6 +66,9 @@ public:
     freerdp_peer *freerdpPeer() const;
 
 protected:
+	// Sends bitmap updates for
+	// - the rectangles contained in `region`
+	// - rectangles internally marked as dirty
 	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
 	bool repaint_egfx(const QRegion &rect, bool compress);
