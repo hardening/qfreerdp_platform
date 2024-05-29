@@ -491,12 +491,7 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		, mNumLockModIndex(0)
 		, mScrollLockModIndex(0)
 #endif
-{
-	// init Kbd modifiers
-	foreach(QString modifier, MODIFIERS) {
-		mKbdStateModifiers.insert(modifier, false);
-	}
-}
+{}
 
 void QFreeRdpPeer::dropSocketNotifier(QSocketNotifier *notifier) {
 	if(notifier) {
@@ -1775,41 +1770,11 @@ xkb_keysym_t QFreeRdpPeer::getXkbSymbol(const quint32 &scanCode, const bool &isD
 	// get key symbol
 	xkb_keysym_t sym = xkb_state_key_get_one_sym(mXkbState, scanCode);
 
-	// check key symbol name
-	const uint32_t sizeSymbolName = 64;
-	char buffer[sizeSymbolName];
-	int xkbStatus = xkb_keysym_get_name(sym, buffer, sizeSymbolName);
-	if (xkbStatus == -1) {
-		return sym;
-	}
-
-	// qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer);
-
-	// check if symbol is a known modifier
-	//
-	// 2024-04-23 - LKC:
-	// This whole loop feels to me like it would do more harm than good, given
-	// that not calling xkb_state_update_key() everytime might desync XKB's
-	// internal state. But given I don't know nearly enough about the
-	// circumstances that lead to its creation to do anything about it,
-	// I'll limit myself to writing this comment...
-	//
-	// For reference, the relevant commits are b7084680 and fc86720b
-	foreach(QString modifierName, mKbdStateModifiers.keys()) {
-		if (!QString(buffer).startsWith(modifierName)) {
-			// not this modifier
-			continue;
-		}
-
-		if (isDown && mKbdStateModifiers[modifierName]) {
-			// key is pressed and key was already enabled -> return sym
-			return sym;
-		}
-
-		// update state
-		mKbdStateModifiers[modifierName] = isDown;
-		break;
-	}
+	/* // Get key symbol name for debug logging
+	 * const uint32_t sizeSymbolName = 64;
+	 * char buffer[sizeSymbolName];
+	 * xkb_keysym_get_name(sym, buffer, sizeSymbolName);
+	 * qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer); */
 
 	// update xkb state
 	xkb_state_update_key(mXkbState, scanCode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));

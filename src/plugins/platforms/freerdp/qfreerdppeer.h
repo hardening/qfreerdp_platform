@@ -164,8 +164,6 @@ protected:
 	xkb_mod_index_t mCapsLockModIndex;
 	xkb_mod_index_t mNumLockModIndex;
 	xkb_mod_index_t mScrollLockModIndex;
-
-	QMap<QString, bool> mKbdStateModifiers;
 #endif
 
 private :
