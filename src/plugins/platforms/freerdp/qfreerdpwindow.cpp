@@ -72,7 +72,7 @@ void QFreeRdpWindow::setDecorate(bool active)
 		return;
 
 	if (active) {
-		mDecorations = new WmWindowDecoration(this, mColorTheme, mPlatform->getIconResource(ICON_RESOURCE_RUBYCAT_CLOSE_BUTTON));
+		mDecorations = new WmWindowDecoration(this, mColorTheme, mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
 
 		setGeometry(
 				geometry().adjusted(BORDERS_SIZE, TOP_BAR_SIZE, -BORDERS_SIZE, -BORDERS_SIZE)

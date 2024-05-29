@@ -50,8 +50,7 @@ enum DisplayMode {
 };
 
 typedef enum {
-	ICON_RESOURCE_CLOSE_BUTTON,
-	ICON_RESOURCE_RUBYCAT_CLOSE_BUTTON,
+	ICON_RESOURCE_CLOSE_BUTTON
 } IconResourceType;
 
 /** @brief image resources associated with an icon button*/

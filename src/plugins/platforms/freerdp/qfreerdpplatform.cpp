@@ -402,8 +402,7 @@ bool QFreeRdpPlatform::loadResources() {
 	};
 
 	ResItem items[] = {
-		{ICON_RESOURCE_CLOSE_BUTTON, ":/qfreerdp/window-close.png", ":/qfreerdp/window-close#hover.png" },
-		{ICON_RESOURCE_RUBYCAT_CLOSE_BUTTON, ":/qfreerdp/rubycat-window-close.png", ":/qfreerdp/rubycat-window-close#hover.png" },
+		{ICON_RESOURCE_CLOSE_BUTTON, ":/qfreerdp/window-close.png", ":/qfreerdp/window-close#hover.png" }
 	};
 
 	for (size_t i = 0; i < ARRAYSIZE(items); i++) {

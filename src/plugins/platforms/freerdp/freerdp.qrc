@@ -2,7 +2,5 @@
 <qresource prefix="/qfreerdp">
     <file alias="window-close.png">icons/window-close.png</file>
     <file alias="window-close#hover.png">icons/window-close#hover.png</file>
-    <file alias="rubycat-window-close.png">icons/rubycat-window-close.png</file>
-    <file alias="rubycat-window-close#hover.png">icons/rubycat-window-close#hover.png</file>
 </qresource>
 </RCC>
