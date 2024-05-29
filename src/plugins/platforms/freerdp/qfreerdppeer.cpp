@@ -246,20 +246,38 @@ static QStringList MODIFIERS = QStringList() << "Shift" << "Control" << "Alt" <<
 //	* src/plugins/platforms/wayland_common/qwaylandinputdevice.cpp
 //	* src/plugins/platforms/wayland_common/qwaylandkey.cpp
 //
-static Qt::KeyboardModifiers translateModifiers(xkb_state *state)
+static Qt::KeyboardModifiers translateModifiers(xkb_state *state, xkb_keycode_t key)
 {
     Qt::KeyboardModifiers ret = Qt::NoModifier;
     xkb_state_component cstate = xkb_state_component(XKB_STATE_DEPRESSED | XKB_STATE_LATCHED);
+    xkb_keymap* keymap = xkb_state_get_keymap(state);
 
-    if (xkb_state_mod_name_is_active(state, "Shift", cstate))
+    // Here we check both for active XKB modifiers, but also if they have been
+    // consumed (already used as shortcuts/combinations inside XKB), as defined
+    // here:
+    // - https://xkbcommon.org/doc/current/group__state.html
+    // - https://github.com/xkbcommon/libxkbcommon/issues/310
+    //
+    // If we do not catch those consumed mods, Qt will catch them and mess with
+    // the use of Ctrl+Alt as AltGr from our windows compatibility keymaps.
+    //
+    // Also, we use XKB_CONSUMED_MODE_GTK in order to avoid ignoring modifiers
+    // in situations where they should remain available.
+    // - https://xkbcommon.org/doc/current/group__state.html#ga66c3ae7ebaf4ccd60e5dab61dc1c29fb
+    if (xkb_state_mod_name_is_active(state, "Shift", cstate) &&
+            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Shift"), XKB_CONSUMED_MODE_GTK))
         ret |= Qt::ShiftModifier;
-    if (xkb_state_mod_name_is_active(state, "Control", cstate))
+    if (xkb_state_mod_name_is_active(state, "Control", cstate) &&
+            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Control"), XKB_CONSUMED_MODE_GTK))
         ret |= Qt::ControlModifier;
-    if (xkb_state_mod_name_is_active(state, "Alt", cstate))
+    if (xkb_state_mod_name_is_active(state, "Alt", cstate) &&
+            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Alt"), XKB_CONSUMED_MODE_GTK))
         ret |= Qt::AltModifier;
-    if (xkb_state_mod_name_is_active(state, "Mod1", cstate))
+    if (xkb_state_mod_name_is_active(state, "Mod1", cstate) &&
+            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Mod1"), XKB_CONSUMED_MODE_GTK))
         ret |= Qt::AltModifier;
-    if (xkb_state_mod_name_is_active(state, "Mod4", cstate))
+    if (xkb_state_mod_name_is_active(state, "Mod4", cstate) &&
+            !xkb_state_mod_index_is_consumed2(state, key, xkb_keymap_mod_get_index(keymap, "Mod4"), XKB_CONSUMED_MODE_GTK))
         ret |= Qt::MetaModifier;
 
     return ret;
@@ -422,6 +440,11 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 		return;
 	}
 	qDebug("Using windows layout: %s", xkbRuleNames->layout);
+
+	// Using our custom rules files (xkb/rules/rubycat) to make the custom
+	// type needed by our layouts accessible.
+	xkbRuleNames->rules = "rubycat";
+
 	if (xkbRuleNames->layout == QString("fr")) {
 		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT;
 	} else if (xkbRuleNames->layout == QString("latam")) {
@@ -572,9 +595,9 @@ BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 
 	return TRUE;
 }
 
-BOOL QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 /*flags*/, UINT16 /*code*/)
+BOOL QFreeRdpPeer::xf_input_unicode_keyboard_event(rdpInput* /*input*/, UINT16 flags, UINT16 code)
 {
-	//qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
+	qDebug("Client sent a unicode keyboard event (flags:0x%X code:0x%X)\n", flags, code);
 	return TRUE;
 }
 
@@ -809,6 +832,8 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 		rdpPeer->mCapsLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, XKB_MOD_NAME_CAPS);
 		rdpPeer->mNumLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "Mod2");
 		rdpPeer->mScrollLockModIndex = xkb_map_mod_get_index(rdpPeer->mXkbKeymap, "ScrollLock");
+	} else {
+		qWarning("XKB keymap compilation failed");
 	}
 	if (locale_name) {
 	    qDebug("using locale %s", locale_name);
@@ -1410,8 +1435,6 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 		xkb_compose_state_reset(mXkbComposeState);
 	}
 
-	/* qWarning("%s: vkCode=0x%x scanCode=0x%x isDown=%x text=%s", __func__, vk_code, scancode, isDown, text.toUtf8().constData()); */
-
 	// check if windows has focus
 	QFreeRdpWindow *focusWindow = mPlatform->mWindowManager->getFocusWindow();
 	if(!focusWindow) {
@@ -1420,7 +1443,7 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	}
 
 	// update Qt keyboard state
-	Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState);
+	Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState, scancode);
 	QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
 
 	int count = text.size();
@@ -1428,7 +1451,8 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 
 	uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
 
-	//qWarning("%s: xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x", __func__, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
+	qDebug("%s: vkCode=0x%x scanCode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x",
+			__func__, vk_code, scancode, flags, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
 
 	// send key
 	sendKey(focusWindow->window(), ++mKeyTime, type, qtsym, modifiers, scancode, xsym, 0,text);
@@ -1752,7 +1776,18 @@ xkb_keysym_t QFreeRdpPeer::getXkbSymbol(const quint32 &scanCode, const bool &isD
 		return sym;
 	}
 
+	qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer);
+
 	// check if symbol is a known modifier
+	//
+	// 2024-04-23 - LKC:
+	// This whole loop feels to me like it would do more harm than good, given
+	// that not calling xkb_state_update_key() everytime might desync XKB's
+	// internal state. But given I don't know nearly enough about the
+	// circumstances that lead to its creation to do anything about it,
+	// I'll limit myself to writing this comment...
+	//
+	// For reference, the relevant commits are b7084680 and fc86720b
 	foreach(QString modifierName, mKbdStateModifiers.keys()) {
 		if (!QString(buffer).startsWith(modifierName)) {
 			// not this modifier
