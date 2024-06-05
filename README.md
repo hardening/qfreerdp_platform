@@ -8,7 +8,7 @@ the original code.
 ## Requirements
 
 * Qt5 development librairies (>= 5.12.8)
-* rubycat-libfreerdp (>= 2.100.20230321)
+* libfreerdp (>= 2.100.20230321)
 
 ## Set up dev environment
 ```
@@ -22,9 +22,6 @@ $ export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
 ### system libraries
     apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev libudev-dev libfontconfig1-dev libfreetype6-dev
 
-### rubycat-libfreerdp
-	see freerdp project
-
 ## Installation
 
 ### Compilation
@@ -35,7 +32,7 @@ $ export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
 ### Keyboard layouts
     Install windows specific layouts
     mkdir -p $HOME/.xkb/symbols/ && cp -rf xkbsymbols/* $HOME/.xkb/symbols/
-    
+
 ## Using
 
 To use the platform plugin you need to specify the path where QT can find plugins:
