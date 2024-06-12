@@ -25,7 +25,9 @@ $ export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
 ## Installation
 
 ### Compilation
-    qmake PREFIX=${INSTALL_PATH}/usr && make -j4 all
+    meson setup build -Dprefix=${INSTALL_PATH}/usr -Dglobal_install=false
+    ninja -C build install
+
 
 ### Keyboard layouts
     Install windows specific layouts

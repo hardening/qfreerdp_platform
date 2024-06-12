@@ -78,7 +78,8 @@ SOURCES += main.cpp 				\
 		xcursors/rdp-cursor.cpp     \
 		xcursors/qfreerdpxcursor.cpp
 
-HEADERS += qfreerdpcompositor.h \
+HEADERS += main.h \
+	qfreerdpcompositor.h \
 	qfreerdpplatform.h \
 	qfreerdplistener.h \
 	qfreerdpclipboard.h \
