@@ -20,24 +20,20 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "main.h"
+#include <qpa/qplatformintegrationplugin.h>
+#include "qfreerdpplatform.h"
+
+#include <QtCore/private/qplugin_p.h>
 
 QT_BEGIN_NAMESPACE
 
-QStringList QFreeRdpIntegrationPlugin::keys() const
+class QFreeRdpIntegrationPlugin : public QPlatformIntegrationPlugin
 {
-    QStringList list;
-    list << "freerdp";
-    return list;
-}
-
-QPlatformIntegration *QFreeRdpIntegrationPlugin::create(const QString& system, const QStringList& paramList)
-{
-    if (system.toLower() == "freerdp")
-        return new QFreeRdpPlatform(paramList);
-
-    return 0;
-}
+    Q_OBJECT
+    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "qfreerdp.json")
+public:
+    QStringList keys() const;
+    QPlatformIntegration *create(const QString&, const QStringList&);
+};
 
 QT_END_NAMESPACE
-
