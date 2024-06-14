@@ -24,6 +24,7 @@
 #include <winpr/user.h>
 #include <winpr/sysinfo.h>
 
+#include <freerdp/version.h>
 #include <freerdp/freerdp.h>
 #include <freerdp/codec/rfx.h>
 #include <freerdp/codec/nsc.h>
@@ -83,7 +84,13 @@ static BOOL rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context) 
 	context->settings = settings;
 
 	// init codecs
-	auto codecs = codecs_new(client->context);
+	auto codecs =
+#if FREERDP_VERSION_MAJOR < 3
+		codecs_new(client->context);
+#else
+		freerdp_client_codecs_new( freerdp_settings_get_uint32(context->settings, FreeRDP_ThreadingFlags));
+#endif
+
 	client->context->codecs = codecs;
 	freerdp_client_codecs_prepare(codecs, FREERDP_CODEC_ALL, settings->DesktopWidth,
 			settings->DesktopHeight);
@@ -114,7 +121,11 @@ static void rdp_peer_context_free(freerdp_peer* client, RdpPeerContext* context)
 	context->nsc_context = NULL;
 
 	// free codecs
+#if FREERDP_VERSION_MAJOR < 3
 	codecs_free(client->context->codecs);
+#else
+	freerdp_client_codecs_free(client->context->codecs);
+#endif
 }
 
 #ifndef NO_XKB_SUPPORT
