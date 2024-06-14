@@ -85,10 +85,10 @@ static BOOL rdp_peer_context_new(freerdp_peer* client, RdpPeerContext* context) 
 
 	// init codecs
 	auto codecs =
-#if FREERDP_VERSION_MAJOR < 3
-		codecs_new(client->context);
-#else
+#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 5 || FREERDP_VERSION_MAJOR > 3
 		freerdp_client_codecs_new( freerdp_settings_get_uint32(context->settings, FreeRDP_ThreadingFlags));
+#else
+		codecs_new(client->context);
 #endif
 
 	client->context->codecs = codecs;
@@ -121,10 +121,10 @@ static void rdp_peer_context_free(freerdp_peer* client, RdpPeerContext* context)
 	context->nsc_context = NULL;
 
 	// free codecs
-#if FREERDP_VERSION_MAJOR < 3
-	codecs_free(client->context->codecs);
-#else
+#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 5 || FREERDP_VERSION_MAJOR > 3
 	freerdp_client_codecs_free(client->context->codecs);
+#else
+	codecs_free(client->context->codecs);
 #endif
 }
 
@@ -1415,10 +1415,10 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 		vk_code |= KBDEXT;
 
 	// get scan code
-#if FREERDP_VERSION_MAJOR < 3
-	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
-#else
+#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 1 || FREERDP_VERSION_MAJOR > 3
 	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
+#else
+	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
 #endif
 
 	// check if key is down or up
@@ -1521,12 +1521,12 @@ bool QFreeRdpPeer::setPointer(const POINTER_LARGE_UPDATE *largePointer, Qt::Curs
 		lpointer->cacheIndex = cacheIndex;
 		lpointer->width = largePointer->width;
 		lpointer->height = largePointer->height;
-#if FREERDP_VERSION_MAJOR < 3
-		lpointer->xPos = largePointer->hotSpotX;
-		lpointer->yPos = largePointer->hotSpotY;
-#else
+#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 1 || FREERDP_VERSION_MAJOR > 3
 		lpointer->hotSpotX = largePointer->hotSpotX;
 		lpointer->hotSpotY = largePointer->hotSpotY;
+#else
+		lpointer->xPos = largePointer->hotSpotX;
+		lpointer->yPos = largePointer->hotSpotY;
 #endif
 		lpointer->xorMaskData = largePointer->xorMaskData;
 		lpointer->lengthXorMask = largePointer->lengthXorMask;
