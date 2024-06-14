@@ -1,0 +1,10 @@
+// Register our own rules to be able to load our custom key type over the
+// system ones
+//
+// References:
+// - https://xkbcommon.org/doc/current/user-configuration.html#autotoc_md16 (Adding an option)
+// - /usr/share/X11/xkb/rules/evdev
+! model = types
+  * = complete+qfreerdp_lvl3_ctrlalt
+
+! include %S/evdev

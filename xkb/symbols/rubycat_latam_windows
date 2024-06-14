@@ -1,0 +1,28 @@
+default partial alphanumeric_keys
+xkb_symbols "windows" {
+     // Modifies the basic Latam layout (latam(basic)) to use MS windows
+
+    include "rubycat_latin(type4)"
+
+    name[Group1]="Spanish (Latin American)";
+    key.type[group1] = "FOUR_LEVEL_SEMIALPHABETIC_CTRLALT";
+
+    key <AE01>	{ [         1,     exclam,          bar,   exclamdown ]	};
+    key <AE03>	{ [         3, numbersign, periodcentered,   sterling ]	};
+    key <AE04>	{ [         4,     dollar,   asciitilde,       dollar ]	};
+    key <AE06>	{ [         6,  ampersand,      notsign,  fiveeighths ]	};
+    key <AE11>	{ [apostrophe,   question,    backslash, questiondown ]	};
+    key <AE12>	{ [questiondown, exclamdown, dead_cedilla, dead_ogonek]	};
+
+    key <AD11>  { [dead_acute, dead_diaeresis, dead_diaeresis, dead_abovering ] };
+    key <AD12>  { [      plus,   asterisk,   asciitilde,  dead_macron ] };
+
+    key <AC10>	{ [    ntilde,     Ntilde,   asciitilde, dead_doubleacute ] };
+    key <AC11>  { [ braceleft, bracketleft, dead_circumflex, dead_macron] };
+    key <TLDE>	{ [       bar,     degree,      notsign,      notsign ]	};
+
+    key <BKSL>  { [ braceright, bracketright, dead_grave, dead_macron ] };
+
+    // Enable AltGr
+    include "level3(ralt_switch)"
+};

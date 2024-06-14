@@ -1,0 +1,45 @@
+default partial
+xkb_symbols "windows" {
+    // Modifies the basic belgian layout (be(basic)) to use MS windows
+
+    include "rubycat_latin(basic)"
+
+    name[Group1]="Belgian";
+    key.type[group1] = "FOUR_LEVEL_SEMIALPHABETIC_CTRLALT";
+
+    key <AE01>	{ [ ampersand,          1,          bar,   exclamdown ]	};
+    key <AE02>	{ [    eacute,          2,           at,    oneeighth ]	};
+    key <AE03>	{ [  quotedbl,          3,   numbersign,     sterling ]	};
+    key <AE04>  { [apostrophe,          4,    braceleft,     NoSymbol ] };
+    key <AE05>  { [ parenleft,          5,  bracketleft,     NoSymbol ] };
+    key <AE06>	{ [   section,          6,  asciicircum,  fiveeighths ]	};
+    key <AE07>	{ [    egrave,          7,    braceleft, seveneighths ]	};
+    key <AE08>	{ [    exclam,          8,  bracketleft,    trademark ]	};
+    key <AE09>	{ [  ccedilla,          9,    braceleft,    plusminus ]	};
+    key <AE10>	{ [    agrave,          0,   braceright,       degree ]	};
+    key <AE11>	{ [parenright,     degree,    backslash, questiondown ]	};
+    key <AE12>	{ [     minus, underscore, dead_cedilla,  dead_ogonek ]	};
+
+    key <AD01>	{ [         a,          A,           at,  Greek_OMEGA ]	};
+    key <AD02>	{ [         z,          Z,      lstroke,      Lstroke ]	};
+    key <AD03>	{ [         e,          E,     EuroSign,         cent ]	};
+    key <AD09>  { [         o,          O,           oe,           OE ] }; // o O œ Œ
+    key <AD11>  { [dead_circumflex, dead_diaeresis, bracketleft, NoSymbol] };
+    key <AD12>  { [    dollar,   asterisk, bracketright,     NoSymbol ] };
+
+    key <AC01>	{ [         q,          Q,           ae,           AE ]	};
+    key <AC10>	{ [         m,          M,   dead_acute, dead_doubleacute ] };
+    key <AC11>  { [    ugrave,    percent,   dead_acute,     NoSymbol ] };
+    key <TLDE>	{ [twosuperior, threesuperior,  notsign,      notsign ]	};
+
+    key <BKSL>  { [              mu,        sterling,   dead_grave, NoSymbol ] };
+    key <AB01>	{ [         w,          W, guillemotleft,        less ]	};
+    key <AB07>	{ [     comma,   question, dead_cedilla,    masculine ]	};
+    key <AB08>	{ [ semicolon,     period, horizconnector,   multiply ]	};
+    key <AB09>	{ [     colon,      slash, periodcentered,   division ]	};
+    key <AB10>  { [     equal,       plus,     asciitilde, NoSymbol ] };
+    key <LSGT>  { [      less,    greater,    backslash,    backslash ]	};
+
+    // Enable AltGr
+    include "level3(ralt_switch)"
+};

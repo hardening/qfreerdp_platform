@@ -82,7 +82,6 @@ protected:
 	QWindow *mEnteredWindow;
 	WmWidget *mEnteredWidget;
 	int mDecoratedWindows;
-	bool mDoDecorate;
 	int mFps;
 
 	QTimer mFrameTimer;

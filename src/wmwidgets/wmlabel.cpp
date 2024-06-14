@@ -25,11 +25,10 @@
 #include <QPainter>
 #include <QDebug>
 
-WmLabel::WmLabel(const QString &title, const QFont &font, WmWidget *parent)
-: WmWidget(parent)
+WmLabel::WmLabel(const QString &title, const WmTheme& theme, WmWidget *parent)
+: WmWidget(theme, parent)
 , mTitle(title)
-, mFont(font)
-, mFontMetrics(mFont)
+, mFontMetrics(theme.font)
 {
 	mSize = mFontMetrics.boundingRect(title.length() ? title : " ").size();
 }
@@ -45,14 +44,18 @@ void WmLabel::handleResize() {
 }
 
 void WmLabel::repaint(QPainter &painter, const QPoint &pos) {
-	painter.fillRect(QRect(pos + mPos, size()), mColors.backColor);
+	painter.fillRect(QRect(pos + mPos, size()), mTheme.backColor);
 
-	painter.setFont(mFont);
-	painter.setPen(mColors.frontColor);
+	painter.setFont(mTheme.font);
+	painter.setPen(mTheme.frontColor);
 
+	// Compute the baseline height to vertically center the text according to
+	// the cap height (typically the height of 'flat' capital letters such as
+	// I, H, or M). The `+ 1` is here to round up the division and so bias the
+	// text position down for a more aesthetically pleasing result
+	int y = (mSize.height() + mFontMetrics.capHeight() + 1) / 2;
 	QRect renderedRect = mFontMetrics.boundingRect(mTitle);
-	int y = (mSize.height() + mFontMetrics.height()/2)/2;
-	QPoint dest((mSize.width() - renderedRect.width()) / 2, /*mSize.height() + renderedRect.top() / 2*/ y);
+	QPoint dest((mSize.width() - renderedRect.width()) / 2, y);
 	painter.drawText(pos + mPos + dest, mTitle);
 
 #ifdef DEBUG_LABEL

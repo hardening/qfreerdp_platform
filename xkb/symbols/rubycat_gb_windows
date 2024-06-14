@@ -1,0 +1,31 @@
+default partial alphanumeric_keys
+xkb_symbols "windows" {
+     // Modifies the basic GB layout (gb(basic)) to use MS windows
+     // Too much time was already spent on the AltGr behaviour overhaul, but if
+     // this layout ever needs improvement, look towards gb(extd).
+
+    include "rubycat_latin(basic)"
+
+    name[Group1]="English (UK)";
+    key.type[group1] = "FOUR_LEVEL_SEMIALPHABETIC_CTRLALT";
+
+    key <AE02>	{ [         2,   quotedbl,  twosuperior,    oneeighth ]	};
+    key <AE03>	{ [         3,   sterling, threesuperior,    sterling ]	};
+    key <AE04>	{ [         4,     dollar,     EuroSign,   onequarter ]	};
+
+    key <AC11>	{ [apostrophe,         at, dead_circumflex, dead_caron]	};
+    key <TLDE>	{ [     grave,    notsign,          bar,          bar ]	};
+
+    key <BKSL>	{ [numbersign, asciitilde,   dead_grave,   dead_breve ]	};
+    key <LSGT>	{ [ backslash,        bar,          bar,    brokenbar ]	};
+
+    key <AD03> { [         e,          E,       eacute,       Eacute ] };
+    key <AD07> { [         u,          U,       uacute,       Uacute ] };
+    key <AD08> { [         i,          I,       iacute,       Iacute ] };
+    key <AD09> { [         o,          O,       oacute,       Oacute ] };
+
+    key <AC01> { [         a,          A,       aacute,       Aacute ] };
+
+    // Enable AltGr with compose(?)
+    include "level3(ralt_switch_multikey)"
+};

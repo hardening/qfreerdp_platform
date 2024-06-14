@@ -25,8 +25,8 @@
 #include <QPainter>
 #include <QDebug>
 
-WmIconButton::WmIconButton(QImage *normal, QImage *over, WmWidget *parent)
-: WmWidget(parent)
+WmIconButton::WmIconButton(QImage *normal, QImage *over, const WmTheme& theme, WmWidget *parent)
+: WmWidget(theme, parent)
 , mNormal(normal)
 , mOver(over)
 , mCurrentImage(mNormal)

@@ -22,18 +22,14 @@
 
 #include "wmwidget.h"
 
-WmColorScheme defaultColorScheme = {
-	Qt::white, Qt::black
-};
 
-
-WmWidget::WmWidget(WmWidget *parent)
+WmWidget::WmWidget(const WmTheme& theme, WmWidget *parent)
 : mParent(parent)
 , mPos(0, 0)
 , mMinimumSize(1, 1)
 , mMaximumSize(3000, 3000)
 , mSize(1,  1)
-, mColors(defaultColorScheme)
+, mTheme(theme)
 {
 }
 
@@ -87,10 +83,6 @@ QSize WmWidget::maxSize() const {
 void WmWidget::setSize(const QSize &size) {
 	mSize = size;
 	handleResize();
-}
-
-void WmWidget::setColors(const WmColorScheme &colors) {
-	mColors = colors;
 }
 
 

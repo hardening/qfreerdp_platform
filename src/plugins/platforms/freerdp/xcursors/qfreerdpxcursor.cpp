@@ -118,10 +118,12 @@ void QFreeRdpCursor::restoreLastCursor() {
 void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window) {
 	Q_UNUSED(window);
 
-	mLastCursor = *cursor;
-
+	// cursor is NULL when restoring cursor to default, for example
+	// when called by QGuiApplication::unsetCursor()
+	mLastCursor = cursor ? *cursor : QCursor();
 	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
-	//qDebug() << "changeCursor() to " << newShape;
+
+	qDebug() << "changeCursor() to " << newShape;
 	if (newShape == Qt::BlankCursor) {
 		mPlatform->setBlankCursor();
 		return;

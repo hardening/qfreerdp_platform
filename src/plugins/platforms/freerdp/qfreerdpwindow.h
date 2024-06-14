@@ -25,6 +25,8 @@
 
 #include <qpa/qplatformwindow.h>
 
+#include <wmwidgets/wmwidget.h>
+
 QT_BEGIN_NAMESPACE
 
 class QFreeRdpPlatform;

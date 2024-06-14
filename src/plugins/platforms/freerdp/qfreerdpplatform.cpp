@@ -68,7 +68,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	egfx_enabled(true),
 	secrets_file(nullptr),
 	screenSz(800, 600),
-	displayMode(DisplayMode::AUTODETECT)
+	displayMode(DisplayMode::AUTODETECT),
+	theme{Qt::white, Qt::black, QFont("time", 10)}
 {
 	QString subVal;
 	bool ok = true;
@@ -130,6 +131,25 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			if(!secrets_file) {
 				qWarning() << "invalid secrets key" << subVal;
 			}
+		} else if(param.startsWith(QLatin1String("fg-color="))) {
+			subVal = param.mid(strlen("fg-color="));
+			if(QColor::isValidColor(subVal)) {
+				theme.frontColor.setNamedColor(subVal);
+			} else {
+				qWarning() << "invalid foreground color" << subVal;
+			}
+		} else if(param.startsWith(QLatin1String("bg-color="))) {
+			subVal = param.mid(strlen("bg-color="));
+			if(QColor::isValidColor(subVal)) {
+				theme.backColor.setNamedColor(subVal);
+			} else {
+				qWarning() << "invalid background color" << subVal;
+			}
+		} else if(param.startsWith(QLatin1String("font="))) {
+			subVal = param.mid(strlen("font="));
+			// There is no error to catch here, Qt just falls back to another
+			// font if it cannot load the one requested
+			theme.font.setFamily(subVal);
 		} else if(param == "noegfx") {
 			qDebug("disabling egfx");
 			egfx_enabled = false;
@@ -177,12 +197,17 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QStringList& paramList)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
 	QWindowSystemInterface::handleScreenAdded(mScreen);
 
-	// set information on platform
-	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
-	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
-
 	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
+
+char* QFreeRdpPlatform::getListenAddress() const {
+	return mConfig->bind_address;
+}
+
+int QFreeRdpPlatform::getListenPort() const {
+	return mConfig->port;
+}
+
 
 QFreeRdpPlatform::~QFreeRdpPlatform() {
 	foreach(QFreeRdpPeer* peer, mPeers) {
@@ -260,6 +285,10 @@ void QFreeRdpPlatform::initialize() {
 		mListener->initialize();
 	}
 
+	// set information on platform
+	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
+	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
+
 	// create Input Context Plugin
 	mInputContext.reset(QPlatformInputContextFactory::create());
 	mWindowManager->initialize();
@@ -300,7 +329,6 @@ void QFreeRdpPlatform::repaint(const QRegion &region) {
 		peer->repaint(region);
 	}
 }
-
 
 void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if(mConfig->tls_enabled) {
@@ -347,7 +375,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if (settings->FIPSMode) {
 		flags |= WINPR_SSL_INIT_ENABLE_FIPS;
 	}
-	
+
 	// init SSL
 	winpr_InitializeSSL(flags);
 
@@ -420,3 +448,6 @@ const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
 	return *it;
 }
 
+const WmTheme& QFreeRdpPlatform::getTheme() {
+	return mConfig->theme;
+}

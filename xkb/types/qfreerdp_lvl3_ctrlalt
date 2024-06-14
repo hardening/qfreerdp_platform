@@ -1,0 +1,59 @@
+partial default xkb_types "default" {
+    virtual_modifiers LevelThree, Alt;
+
+    // custom type that enable simultaneous use of the real AltGr as a level3
+    // modifier, and Ctrl+Alt as a pseudo AltGr/Level3.
+    //
+    // References:
+    // - https://unix.stackexchange.com/a/187495
+    // - https://web.archive.org/web/20190724070654/http://pascal.tsu.ru/en/xkb/gram-types.html
+    type "FOUR_LEVEL_SEMIALPHABETIC_CTRLALT" {
+        modifiers = Shift+Lock+LevelThree+Control+Alt;
+
+        map[None] = Level1;
+
+        map[Shift] = Level2;
+        map[Lock]  = Level2;
+
+        map[LevelThree] = Level3;
+        map[Control+Alt] = Level3;
+        map[Lock+LevelThree] =  Level3;
+        map[Lock+Control+Alt] =  Level3;
+
+        map[Shift+LevelThree] = Level4;
+        map[Control+Alt+Shift] = Level4;
+        map[Lock+Shift+LevelThree] = Level4;
+        map[Lock+Shift+Control+Alt] = Level4;
+
+        preserve[Lock+LevelThree] = Lock;
+        preserve[Lock+Control+Alt] = Lock;
+        preserve[Lock+Shift+LevelThree] = Lock;
+        preserve[Lock+Shift+Control+Alt] = Lock;
+
+        // On windows, using a keyboard layout with AltGr, when pressing AltGr
+        // in the browser, both Chrome and Firefox generate _two_
+        // KeyboardEvent(): "Control,ControlLeft" (written as
+        // "event.key,event.code") and then "AltGraph,AltRight", as opposed to
+        // a single "AltGraph,AltRight" on linux, or "Alt,AltRight" on windows
+        // with US layout.
+        //
+        // This behaviour can be visualized using
+        // https://codepen.io/denilsonsa/pen/epmoma
+        //
+        // Given that Control is part of the modifiers declared in this type,
+        // XKB would simply ignore Ctrl+Altgr without the following
+        // declarations:
+        map[Control+LevelThree] = Level3;
+        map[Lock+Control+LevelThree] = Level3;
+        map[Control+Shift+LevelThree] = Level4;
+        map[Lock+Control+Shift+LevelThree] = Level4;
+
+        preserve[Lock+Control+LevelThree] = Lock;
+        preserve[Lock+Control+Shift+LevelThree] = Lock;
+
+        level_name[Level1] = "Base";
+        level_name[Level2] = "Shift";
+        level_name[Level3] = "Alt Base";
+        level_name[Level4] = "Shift Alt";
+    };
+};

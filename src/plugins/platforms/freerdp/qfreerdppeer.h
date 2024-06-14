@@ -33,6 +33,7 @@
 
 #ifndef NO_XKB_SUPPORT
 #include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-compose.h>
 #endif
 
 #include "qfreerdpcompositor.h"
@@ -65,6 +66,9 @@ public:
     freerdp_peer *freerdpPeer() const;
 
 protected:
+	// Sends bitmap updates for
+	// - the rectangles contained in `region`
+	// - rectangles internally marked as dirty
 	void repaint(const QRegion &rect);
 	void repaint_raw(const QRegion &rect);
 	bool repaint_egfx(const QRegion &rect, bool compress);
@@ -96,7 +100,9 @@ protected:
 	static BOOL xf_input_synchronize_event(rdpInput *input, UINT32 flags);
 	static BOOL xf_input_keyboard_event(rdpInput *input, UINT16 flags, UINT8 code);
 	static BOOL xf_input_unicode_keyboard_event(rdpInput *input, UINT16 flags, UINT16 code);
+	// [MS-RDPBGGR] 2.2.11.2 Client Refresh Rect PDU
 	static BOOL xf_refresh_rect(rdpContext *context, BYTE count, const RECTANGLE_16* areas);
+	// [MS-RDPBGGR] 2.2.11.2 Client Suppress Output PDU
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	static BOOL xf_surface_frame_acknowledge(rdpContext* context, UINT32 frameId);
 
@@ -157,12 +163,12 @@ protected:
     struct xkb_context *mXkbContext;
     struct xkb_keymap *mXkbKeymap;
     struct xkb_state *mXkbState;
+    struct xkb_compose_state *mXkbComposeState;
+    struct xkb_compose_table *mXkbComposeTable;
 
 	xkb_mod_index_t mCapsLockModIndex;
 	xkb_mod_index_t mNumLockModIndex;
 	xkb_mod_index_t mScrollLockModIndex;
-
-	QMap<QString, bool> mKbdStateModifiers;
 #endif
 
 private :
