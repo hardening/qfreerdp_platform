@@ -25,8 +25,8 @@
 #include <QPainter>
 #include <QDebug>
 
-WmHContainer::WmHContainer(WmWidget *parent)
-: WmWidget(parent)
+WmHContainer::WmHContainer(const WmTheme& theme, WmWidget *parent)
+: WmWidget(theme, parent)
 , mEntered(nullptr)
 {
 }
@@ -136,7 +136,7 @@ void WmHContainer::recomputeSizesAndPos() {
 
 
 void WmHContainer::repaint(QPainter &painter, const QPoint &pos) {
-	painter.fillRect(QRect(pos + mPos, mSize), mColors.backColor);
+	painter.fillRect(QRect(pos + mPos, mSize), mTheme.backColor);
 
 	foreach(auto item, mItems) {
 		auto widget = item.widget;

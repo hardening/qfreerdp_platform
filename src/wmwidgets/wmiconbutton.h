@@ -30,7 +30,7 @@ QT_BEGIN_NAMESPACE
 class WmIconButton : public WmWidget {
 	Q_OBJECT
 public:
-	WmIconButton(QImage *normal, QImage *over, WmWidget *parent = nullptr);
+	WmIconButton(QImage *normal, QImage *over, const WmTheme& theme, WmWidget *parent = nullptr);
 
 	void handleEnter(const QPoint &pos) override;
 	void handleLeave() override;

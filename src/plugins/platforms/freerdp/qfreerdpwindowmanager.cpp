@@ -42,7 +42,6 @@ QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps
 , mEnteredWindow(0)
 , mEnteredWidget(0)
 , mDecoratedWindows(0)
-, mDoDecorate(false)
 , mFps(fps)
 {
 	connect(&mFrameTimer, SIGNAL(timeout()), this, SLOT(onGenerateFrame()));
@@ -69,21 +68,17 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 	if(qwindow->type() != Qt::Desktop)
 		mFocusWindow = window;
 
-	if (isDecorableWindow(qwindow))
-		mDecoratedWindows++;
-
 	QRegion dirtyRegion = window->outerWindowGeometry();
-	bool decorate = (mDecoratedWindows > 1);
-	if (decorate != mDoDecorate) {
-		qDebug("activating windows decorations");
-		dirtyRegion = window->screen()->geometry();
 
-		foreach(QFreeRdpWindow *window, mWindows) {
-			window->setDecorate(true);
-		}
+	// mWinId 1 is our original page, where we don't want any decorations
+	// Any other window is fair game.
+	if (window->winId() > 1 && isDecorableWindow(qwindow)) {
+		qDebug("WM activating windows decorations");
+		mDecoratedWindows++;
+		dirtyRegion = window->screen()->geometry();
+		window->setDecorate(true);
 	}
 
-	mDoDecorate = decorate;
 	mDirtyRegion += dirtyRegion;
 }
 
@@ -100,21 +95,12 @@ void QFreeRdpWindowManager::dropWindow(QFreeRdpWindow *window) {
 	if (deco == mEnteredWidget)
 		mEnteredWidget = nullptr;
 
-	if (isDecorableWindow(window->window()))
+	if (window->winId() > 1 && isDecorableWindow(window->window())) {
+		qDebug("WM desactivating windows decorations");
 		mDecoratedWindows--;
+	}
 
 	QRegion dirtyRegion = window->windowFrameGeometry();
-	bool decorate = (mDecoratedWindows > 1);
-	if (decorate != mDoDecorate) {
-		qDebug("desactivating windows decorations");
-		dirtyRegion = window->screen()->geometry();
-
-		foreach(QFreeRdpWindow *window, mWindows) {
-			window->setDecorate(false);
-		}
-
-	}
-	mDoDecorate = decorate;
 
 	mDirtyRegion += dirtyRegion;
 }
@@ -197,8 +183,8 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 		}
 
 		/*  then draw the window content itself	 */
-//		qDebug("%s: window=%llu windowRectLeft=%d windowRectTop=%d windowRectWidth=%d windowRectHeight=%d", __func__, window->winId(),
-//				windowRect.left(), windowRect.top(), windowRect.width(), windowRect.height());
+// 		qDebug("%s: window=%llu windowRectLeft=%d windowRectTop=%d windowRectWidth=%d windowRectHeight=%d", __func__, window->winId(),
+// 				windowRect.left(), windowRect.top(), windowRect.width(), windowRect.height());
 		QRegion inter = toRepaint.intersected(windowRect);
 		for (const QRect& repaintRect : inter) {
 			QPoint topLeft = windowRect.topLeft();

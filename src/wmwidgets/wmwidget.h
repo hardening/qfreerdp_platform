@@ -24,6 +24,7 @@
 
 #include <QObject>
 #include <QRegion>
+#include <QFont>
 #include <QColor>
 
 QT_BEGIN_NAMESPACE
@@ -31,20 +32,18 @@ QT_BEGIN_NAMESPACE
 class QPainter;
 
 
-/** @brief a color theme */
-struct WmColorScheme {
+struct WmTheme {
 	QColor frontColor;
 	QColor backColor;
+	QFont font;
 };
-
-extern WmColorScheme defaultColorScheme;
 
 
 /** @brief base class for window manager widgets */
 class WmWidget : public QObject {
 	Q_OBJECT
 public:
-	WmWidget(WmWidget *parent = nullptr);
+	WmWidget(const WmTheme& theme, WmWidget *parent = nullptr);
 	virtual ~WmWidget() = default;
 
 	WmWidget* parent() const;
@@ -62,7 +61,6 @@ public:
 	QSize maxSize() const;
 
 	void setSize(const QSize &size);
-	void setColors(const WmColorScheme &colors);
 
 	/** Callbacks that widgets may re-implement
 	 * @{ */
@@ -80,7 +78,7 @@ protected:
 	QSize mMinimumSize;
 	QSize mMaximumSize;
 	QSize mSize;
-	WmColorScheme mColors;
+	const WmTheme& mTheme;
 };
 
 QT_END_NAMESPACE

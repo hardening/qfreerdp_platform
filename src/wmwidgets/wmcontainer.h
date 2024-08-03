@@ -41,7 +41,7 @@ typedef struct {
 /** @brief an horizontal container */
 class WmHContainer : public WmWidget {
 public:
-	WmHContainer(WmWidget *parent = nullptr);
+	WmHContainer(const WmTheme& theme, WmWidget *parent = nullptr);
 	~WmHContainer();
 	void push(WmWidget* item, WmWidgetSizePolicy policy = WMWIDGET_SIZEPOLICY_FIXED);
 

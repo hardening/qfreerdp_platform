@@ -1,0 +1,69 @@
+default partial alphanumeric_keys
+xkb_symbols "windows" {
+    // Modifies the basic French layout fr(latin9) to use MS windows
+
+    include "rubycat_latin(basic)"
+    include "nbsp(level3)"
+
+    key.type[group1] = "FOUR_LEVEL_SEMIALPHABETIC_CTRLALT";
+    name[Group1]="French (legacy, alt.)";
+
+    key <TLDE>  {[     twosuperior,     twosuperior, leftdoublequotemark, rightdoublequotemark]};
+    key <AE01>  {[       ampersand,               1,          dead_acute,       periodcentered]};
+    key <AE02>  {[          eacute,               2,          dead_tilde,               Eacute]};
+    key <AE03>  {[        quotedbl,               3,          numbersign,              cedilla]};
+    key <AE04>  {[      apostrophe,               4,           braceleft,                acute]};
+    key <AE05>  {[       parenleft,               5,         bracketleft,            diaeresis]};
+    key <AE06>  {[           minus,               6,                 bar,            brokenbar]};
+    key <AE07>  {[          egrave,               7,          dead_grave,               Egrave]};
+    key <AE08>  {[      underscore,               8,           backslash,               macron]};
+    key <AE09>  {[        ccedilla,               9,         asciicircum,             Ccedilla]};
+    key <AE10>  {[          agrave,               0,                  at,               Agrave]};
+    key <AE11>  {[      parenright,          degree,        bracketright,           ydiaeresis]};
+    key <AE12>  {[           equal,            plus,          braceright,       dead_abovering]};
+
+    key <AD01>  {[               a,               A,         acircumflex,           adiaeresis]};
+    key <AD02>  {[               z,               Z,               aring,                Aring]};
+    key <AD03>  {[               e,               E,            EuroSign,                 cent]};
+    key <AD04>  {[               r,               R,            ccedilla,             Ccedilla]};
+    key <AD05>  {[               t,               T,               thorn,                THORN]};
+    key <AD06>  {[               y,               Y,              yacute,               Yacute]};
+    key <AD07>  {[               u,               U,         ucircumflex,           udiaeresis]};
+    key <AD08>  {[               i,               I,         icircumflex,           idiaeresis]};
+    key <AD09>  {[               o,               O,         ocircumflex,           odiaeresis]};
+    key <AD10>  {[               p,               P,           paragraph,                grave]};
+    key <AD11>  {[ dead_circumflex,  dead_diaeresis,          dead_tilde,           apostrophe]};
+    key <AD12>  {[          dollar,        sterling,         ecircumflex,           ediaeresis]};
+
+    key <AC01>  {[               q,               Q,         Acircumflex,           Adiaeresis]};
+    key <AC02>  {[               s,               S,              oslash,             Ooblique]};
+    key <AC03>  {[               d,               D,         Ecircumflex,           Ediaeresis]};
+    key <AC04>  {[               f,               F,           plusminus,          ordfeminine]};
+    key <AC05>  {[               g,               G,                  ae,                   AE]};
+    key <AC06>  {[               h,               H,                 eth,                  ETH]};
+    key <AC07>  {[               j,               J,         Ucircumflex,           Udiaeresis]};
+    key <AC08>  {[               k,               K,         Icircumflex,           Idiaeresis]};
+    key <AC09>  {[               l,               L,         Ocircumflex,           Odiaeresis]};
+    key <AC10>  {[               m,               M,         onesuperior,            masculine]};
+    key <AC11>  {[          ugrave,         percent,         twosuperior,               Ugrave]};
+    key <BKSL>  {[        asterisk,              mu,       threesuperior,                  yen]};
+
+    key <LSGT>  {[            less,         greater,                 bar  ]};
+    key <AB01>  {[               w,               W,       guillemotleft  ]};
+    key <AB02>  {[               x,               X,      guillemotright  ]};
+    key <AB03>  {[               c,               C,           copyright  ]};
+    key <AB04>  {[               v,               V,          registered  ]};
+    key <AB05>  {[               b,               B,              ssharp  ]};
+    key <AB06>  {[               n,               N,             notsign  ]};
+    key <AB07>  {[           comma,        question,        questiondown  ]};
+    key <AB08>  {[       semicolon,          period,            multiply  ]};
+    key <AB09>  {[           colon,           slash,            division  ]};
+    key <AB10>  {[          exclam,         section,          exclamdown  ]};
+
+    // French uses a comma as decimal separator, but keyboards are labeled with a period
+    // Will take effect when KP_Decimal is mapped to the locale decimal separator
+    key <KPDL>  { [       KP_Delete,      KP_Decimal,           KP_Delete,           KP_Decimal ] };
+
+    // Enable AltGr
+    include "level3(ralt_switch)"
+};

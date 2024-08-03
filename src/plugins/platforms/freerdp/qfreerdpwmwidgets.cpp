@@ -32,23 +32,18 @@
 #define DECORATION_HEIGHT 30
 #define BORDERS_SIZE 2
 
-WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmColorScheme &theme, const IconResource *closeRes, WmWidget *parent)
-: WmWidget(parent)
+WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &theme, const IconResource *closeRes, WmWidget *parent)
+: WmWidget(theme, parent)
 , mWindow(freerdpW)
-, mTopSpacer(new WmSpacer(QSize(5, DECORATION_HEIGHT)))
-, mTopSpacer2(new WmSpacer(QSize(5, DECORATION_HEIGHT)))
-, mTitle(new WmLabel(freerdpW->window()->title(), QFont("time", 10)))
-, mCloseButton(new WmIconButton(closeRes->normalIcon, closeRes->overIcon))
-, mTopContainer(new WmHContainer(this))
+, mTopContainer(new WmHContainer(theme, this))
 , mEnteredWidget(nullptr)
 , mDirty(true)
 , mContent(nullptr)
 {
-	mColors = theme;
-	mTopContainer->setColors(theme);
-	mTopSpacer->setColors(theme);
-	mTopSpacer2->setColors(theme);
-	mTitle->setColors(theme);
+	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
+	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
+	mTitle = new WmLabel(freerdpW->window()->title(), theme, mTopContainer);
+	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, theme, mTopContainer);
 
 
 	/* create the top border :
@@ -95,6 +90,7 @@ void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 void WmWindowDecoration::handleResize() {
 	delete mContent;
 	mContent = new QImage(mSize, QImage::Format_ARGB32);
+	mContent->fill(mTheme.backColor);
 	mTopContainer->setSize(QSize(mSize.width(), DECORATION_HEIGHT));
 }
 

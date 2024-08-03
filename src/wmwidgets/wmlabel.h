@@ -24,7 +24,6 @@
 
 #include <wmwidgets/wmwidget.h>
 
-#include <QFont>
 #include <QFontMetrics>
 
 QT_BEGIN_NAMESPACE
@@ -32,7 +31,7 @@ QT_BEGIN_NAMESPACE
 /** @brief a label used for window title */
 class WmLabel : public WmWidget {
 public:
-	WmLabel(const QString &title, const QFont &font, WmWidget *parent = nullptr);
+	WmLabel(const QString &title, const WmTheme& theme, WmWidget *parent = nullptr);
 
 	void setTitle(const QString &title);
 
@@ -41,7 +40,6 @@ public:
 
 protected:
 	QString mTitle;
-	QFont mFont;
 	QFontMetrics mFontMetrics;
 };
 

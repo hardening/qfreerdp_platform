@@ -29,7 +29,7 @@ QT_BEGIN_NAMESPACE
 /** @brief a widget taking a fixed place (usually in a container) */
 class WmSpacer : public WmWidget {
 public:
-	WmSpacer(const QSize &size, WmWidget *parent = nullptr);
+	WmSpacer(const QSize &size, const WmTheme& theme, WmWidget *parent = nullptr);
 
 	void repaint(QPainter &painter, const QPoint &pos) override;
 };

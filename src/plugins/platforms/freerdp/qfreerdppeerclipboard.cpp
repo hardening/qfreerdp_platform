@@ -290,8 +290,10 @@ UINT QFreerdpPeerClipboard::cliprdr_client_format_data_request (CliprdrServerCon
 	}
 
 	if (payload.size()) {
+		// Add an UTF-16 null-terminator as both CF_TEXT and CF_UNICODETEXT require it
+		payload = payload.append(2, '\0');
 		response.requestedFormatData = (const BYTE *)payload.data();
-		response.common.dataLen = payload.size() + 1;
+		response.common.dataLen = payload.size();
 	}
 	return context->ServerFormatDataResponse(context, &response);
 }
