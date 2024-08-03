@@ -531,11 +531,6 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	mVcm = NULL;
 
 	mClient->Close(mClient);
-#ifndef NO_XKB_SUPPORT
-	xkb_context_unref(mXkbContext);
-	xkb_keymap_unref(mXkbKeymap);
-	xkb_state_unref(mXkbState);
-#endif
 
 	freerdp_peer_context_free(mClient);
 	freerdp_peer_free(mClient);
@@ -546,6 +541,7 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	if (mXkbContext) xkb_context_unref(mXkbContext);
 	if (mXkbComposeTable) xkb_compose_table_unref(mXkbComposeTable);
 	if (mXkbComposeState) xkb_compose_state_unref(mXkbComposeState);
+	if (mXkbKeymap) xkb_keymap_unref(mXkbKeymap);
 #endif
 }
 
