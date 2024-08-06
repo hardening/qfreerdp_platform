@@ -14,9 +14,9 @@ moc_headers = [
     'wmwidget.h'
 ]
 
-moc_files = qt5_mod.preprocess(moc_headers : moc_headers)
+moc_files = qt_mod.preprocess(moc_headers : moc_headers)
 
 libwmwidgets = static_library('wmwidgets', sources, moc_files,
     include_directories: ['..'],
-    dependencies: [qt5_deps]
+    dependencies: [qt_deps]
 )
