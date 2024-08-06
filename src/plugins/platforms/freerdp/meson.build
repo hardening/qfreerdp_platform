@@ -51,7 +51,12 @@ moc_files = qt_mod.compile_moc(
     dependencies: [qt_deps]
 )
 
-target_install_dir = join_paths(get_option('prefix'), get_option('libdir'), qt_ver, 'plugins', 'platforms')
+qt_platform_path = get_option('qt_platform_path')
+if qt_platform_path == ''
+    qt_platform_path = join_paths(qt_ver, 'plugins', 'platforms')
+endif
+
+target_install_dir = join_paths(get_option('prefix'), get_option('libdir'), qt_platform_path)
 if get_option('global_install')
     target_install_dir = join_paths(qt_deps.get_variable('QT_INSTALL_PLUGINS'), 'platforms')
 endif

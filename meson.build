@@ -46,5 +46,16 @@ xcursor_deps = dependency('xcursor')
 
 with_tests = get_option('tests').enabled()
 
+
+xkb_data_path = get_option('xkb_data_path')
+if xkb_data_path == ''
+    xkb_data_path = join_paths(get_option('prefix'), get_option('datadir'), 'X11', 'xkb')
+endif
+
+install_subdir('xkb',
+    install_dir: xkb_data_path,
+    strip_directory: true
+)
+
 subdir('src')
 subdir('xkb')
