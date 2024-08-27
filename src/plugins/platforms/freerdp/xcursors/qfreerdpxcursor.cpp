@@ -123,7 +123,7 @@ void QFreeRdpCursor::changeCursor(QCursor *cursor, QWindow *window) {
 	mLastCursor = cursor ? *cursor : QCursor();
 	const Qt::CursorShape newShape = cursor ? cursor->shape() : Qt::ArrowCursor;
 
-	qDebug() << "changeCursor() to " << newShape;
+	//qDebug() << "changeCursor() to " << newShape;
 	if (newShape == Qt::BlankCursor) {
 		mPlatform->setBlankCursor();
 		return;

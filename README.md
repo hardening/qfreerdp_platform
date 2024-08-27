@@ -18,12 +18,12 @@ export PKG_CONFIG_PATH=${INSTALL_PATH}/usr/lib/pkgconfig:${INSTALL_PATH}/usr/lib
 export LD_LIBRARY_PATH=${INSTALL_PATH}/usr/lib/
 ```
 
-## Install requirements (for Ubuntu 20.04)
+## Install requirements (for Ubuntu 22.04)
 
 ### system libraries
 
 ```shell
-apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev libudev-dev libfontconfig1-dev libfreetype6-dev
+apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev libudev-dev libfontconfig1-dev libfreetype6-dev libxcursor-dev qttools5-dev-tools
 ```
 
 ## Installation
@@ -40,7 +40,9 @@ ninja -C build install
 Install windows specific layouts
 
 ```shell
-mkdir -p $HOME/.xkb/symbols/ && cp -rf xkbsymbols/* $HOME/.xkb/symbols/
+mkdir -p $HOME/.xkb/rules/ && cp -rf xkb/rules/* $HOME/.xkb/rules/
+mkdir -p $HOME/.xkb/symbols/ && cp -rf xkb/symbols/* $HOME/.xkb/symbols/
+mkdir -p $HOME/.xkb/types/ && cp -rf xkb/types/* $HOME/.xkb/types/
 ```
 
 ## Using
