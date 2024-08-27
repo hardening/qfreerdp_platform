@@ -275,6 +275,11 @@ QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
 void QFreeRdpPlatform::initialize() {
 	if (mConfig->fixed_socket != -1) {
 		freerdp_peer *client = freerdp_peer_new(mConfig->fixed_socket);
+		if (!client) {
+			qCritical() << "freerdp_peer_new failed, exiting";
+			return;
+		}
+
 		QFreeRdpPeer *peer = new QFreeRdpPeer(this, client);
 		if(!peer->init()) {
 			delete peer;

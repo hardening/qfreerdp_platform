@@ -1,6 +1,6 @@
 project('qfreerdp', 'cpp',
   version : '1.0.0',
-  meson_version : '>= 0.59',
+  meson_version : '>= 1.0',
   default_options : [ 'warning_level=1',
                       'buildtype=debugoptimized' ])
 
@@ -30,3 +30,4 @@ xcursor_deps = dependency('xcursor')
 with_tests = get_option('tests').enabled()
 
 subdir('src')
+subdir('xkb')
