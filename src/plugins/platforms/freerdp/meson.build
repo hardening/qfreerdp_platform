@@ -39,29 +39,34 @@ moc_headers = [
     'qfreerdpwmwidgets.h',
 ]
 
-resources_files = qt5_mod.compile_resources(sources: ['freerdp.qrc'])
+resources_files = qt_mod.compile_resources(sources: ['freerdp.qrc'])
 
 private_dirs = [
-    qt5_deps.get_variable('QT_INSTALL_ARCHDATA') + '/mkspecs/' + qt5_deps.get_variable('QMAKE_SPEC')
+    qt_deps.get_variable('QT_INSTALL_ARCHDATA') + '/mkspecs/' + qt_deps.get_variable('QMAKE_SPEC')
 ]
 
-moc_files = qt5_mod.compile_moc(
+moc_files = qt_mod.compile_moc(
     headers : moc_headers,
     include_directories: [private_dirs],
-    dependencies: [qt5_deps]
+    dependencies: [qt_deps]
 )
 
-target_install_dir = join_paths(get_option('prefix'), get_option('libdir'), 'qt5', 'plugins', 'platforms')
-if get_option('global_install')
-    target_install_dir = join_paths(qt5_deps.get_variable('QT_INSTALL_PLUGINS'), 'platforms')
+qt_platform_path = get_option('qt_platform_path')
+if qt_platform_path == ''
+    qt_platform_path = join_paths(qt_ver, 'plugins', 'platforms')
 endif
 
-message('installing plugin in @0@'.format(target_install_dir))
+target_install_dir = join_paths(get_option('prefix'), get_option('libdir'), qt_platform_path)
+if get_option('global_install')
+    target_install_dir = join_paths(qt_deps.get_variable('QT_INSTALL_PLUGINS'), 'platforms')
+endif
+
+message('Plugin will be installed to @0@'.format(target_install_dir))
 
 qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
     cpp_args: qt_defines + ['-DFREERDP_SETTINGS_INTERNAL_USE'],
     include_directories: ['../../..', private_dirs],
-    dependencies: [qt5_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps],
+    dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps],
     link_with: libwmwidgets,
     install: true,
     install_dir: target_install_dir

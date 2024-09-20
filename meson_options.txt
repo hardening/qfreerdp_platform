@@ -1,3 +1,9 @@
 option('tests', type: 'feature', value: 'enabled', description: 'build unitary tests')
 
 option('global_install', type: 'boolean', value: true, description: 'install the QPA in the global Qt plugins directory')
+
+option('qt_version', type: 'combo', choices : ['auto', 'qt5', 'qt6'], value: 'auto', description: 'Major Qt version to target. Autodetect will prioritise Qt6')
+
+option('qt_platform_path', type: 'string', value: '', description: 'Override plugin install path inside libdir. Default: {qt_version}/plugins/platforms')
+
+option('xkb_data_path', type: 'string', value: '', description: 'Override absolute XKB data path. Default: /{prefix}/{datadir}/X11/xkb')

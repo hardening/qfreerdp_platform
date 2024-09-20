@@ -230,7 +230,7 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 	mFocusWindow = w;
 }
 
-bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons) {
+bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down) {
 	QFreeRdpWindow *rdpWindow = getWindowAt(pos);
 	QWindow *window = nullptr;
 	WmWidget *targetWmWidget = nullptr;
@@ -274,7 +274,7 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 		mEnteredWidget = targetWmWidget;
 	}
 
-	if(buttons && rdpWindow)
+	if(button && down && rdpWindow)
 		setFocusWindow(rdpWindow);
 
 	if (wmEvent) {
@@ -289,7 +289,12 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 	} else {
 		if(window) {
 			//qDebug("%s: dest=%d flags=0x%x buttons=0x%x", __func__, window->winId(), flags, peer->mLastButtons);
-			QWindowSystemInterface::handleMouseEvent(window, localPos, pos, buttons);
+			QEvent::Type eventType;
+			if (button)
+				eventType = down ? QEvent::MouseButtonPress : QEvent::MouseButtonRelease;
+			else
+				eventType = QEvent::MouseMove;
+			QWindowSystemInterface::handleMouseEvent(window, localPos, pos, buttons, button, eventType);
 		}
 	}
 

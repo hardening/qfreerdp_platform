@@ -41,11 +41,11 @@ public:
 
     ~QFreeRdpBackingStore();
 
-    QPaintDevice *paintDevice();
+    QPaintDevice *paintDevice() override;
 
-    void flush(QWindow *window, const QRegion &region, const QPoint &offset);
+    void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
 
-    void resize(const QSize &size, const QRegion &staticContents);
+    void resize(const QSize &size, const QRegion &staticContents) override;
 
 protected:
     QImage mImage;

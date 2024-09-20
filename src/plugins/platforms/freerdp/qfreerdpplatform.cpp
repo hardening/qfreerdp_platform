@@ -20,9 +20,16 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
-#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
-#include <QtThemeSupport/private/qgenericunixthemes_p.h>
+#include <QtGlobal>
+#if QT_VERSION < 0x060000
+	#include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
+	#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
+	#include <QtThemeSupport/private/qgenericunixthemes_p.h>
+#else
+	#include <QtGui/private/qgenericunixfontdatabase_p.h>
+	#include <QtGui/private/qgenericunixeventdispatcher_p.h>
+	#include <QtGui/private/qgenericunixthemes_p.h>
+#endif
 
 #include <qpa/qplatformnativeinterface.h>
 #include <QtGui/private/qguiapplication_p.h>
@@ -260,12 +267,16 @@ QPlatformTheme *QFreeRdpPlatform::createPlatformTheme(const QString &name) const
 
 bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 {
-    switch (cap) {
-    case ThreadedPixmaps:
-    	return true;
-    default:
-    	return QPlatformIntegration::hasCapability(cap);
-    }
+	switch (cap) {
+	case ThreadedPixmaps:
+		return true;
+#if QT_VERSION >= 0x060100
+	case RhiBasedRendering:
+		return false;
+#endif
+	default:
+		return QPlatformIntegration::hasCapability(cap);
+	}
 }
 
 QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
@@ -291,7 +302,7 @@ void QFreeRdpPlatform::initialize() {
 	}
 
 	// set information on platform
-	mNativeInterface->setProperty("freerdp_address", QVariant(mConfig->bind_address));
+	mNativeInterface->setProperty("freerdp_address", QString(mConfig->bind_address));
 	mNativeInterface->setProperty("freerdp_port", QVariant(mConfig->port));
 
 	// create Input Context Plugin

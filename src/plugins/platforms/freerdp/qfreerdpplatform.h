@@ -113,21 +113,21 @@ public:
 
     /** @overload QPlatformIntegration
      * @{ */
-    virtual bool hasCapability(QPlatformIntegration::Capability cap) const;
-    virtual QPlatformWindow *createPlatformWindow(QWindow *window) const;
-    virtual QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const;
-    virtual QPlatformFontDatabase *fontDatabase() const;
-    virtual QStringList themeNames() const;
-    virtual QPlatformTheme *createPlatformTheme(const QString &name) const;
-    virtual QPlatformNativeInterface *nativeInterface()const;
-    virtual QPlatformInputContext *inputContext() const;
-    virtual QPlatformClipboard *clipboard() const;
-    virtual void initialize();
+    bool hasCapability(QPlatformIntegration::Capability cap) const override;
+    QPlatformWindow *createPlatformWindow(QWindow *window) const override;
+    QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
+    QPlatformFontDatabase *fontDatabase() const override;
+    QStringList themeNames() const override;
+    QPlatformTheme *createPlatformTheme(const QString &name) const override;
+    QPlatformNativeInterface *nativeInterface()const override;
+    QPlatformInputContext *inputContext() const override;
+    QPlatformClipboard *clipboard() const override;
+    void initialize() override;
 
 #if QT_VERSION < 0x050200
     virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
 #else
-    virtual QAbstractEventDispatcher *createEventDispatcher() const;
+    QAbstractEventDispatcher *createEventDispatcher() const override;
 #endif
     /** @} */
 

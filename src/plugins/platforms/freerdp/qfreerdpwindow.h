@@ -49,15 +49,15 @@ public:
 
     /** @overload QPlatformWindow
      * @{*/
-    virtual WId winId() const { return mWinId; }
-    virtual void setWindowState(Qt::WindowState state);
-    virtual void raise();
-    virtual void lower();
-    virtual void setVisible(bool visible);
-    virtual void setGeometry(const QRect &rect);
-    virtual void propagateSizeHints();
-    virtual QMargins frameMargins() const;
-    virtual void setWindowTitle(const QString &title);
+    WId winId() const override { return mWinId; }
+    void setWindowState(Qt::WindowStates state) override;
+    void raise() override;
+    void lower() override;
+    void setVisible(bool visible) override;
+    void setGeometry(const QRect &rect) override;
+    void propagateSizeHints() override;
+    QMargins frameMargins() const override;
+    void setWindowTitle(const QString &title) override;
     /** @} */
 
     virtual QRect outerWindowGeometry() const;

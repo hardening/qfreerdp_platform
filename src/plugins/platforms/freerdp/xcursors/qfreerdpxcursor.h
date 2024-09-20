@@ -43,7 +43,7 @@ public:
 	~QFreeRdpCursor();
 
 #ifndef QT_NO_CURSOR
-    virtual void changeCursor(QCursor *windowCursor, QWindow *window);
+    void changeCursor(QCursor *windowCursor, QWindow *window) override;
 #endif
 
     void restoreLastCursor();

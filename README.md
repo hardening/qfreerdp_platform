@@ -28,21 +28,19 @@ apt install qtbase5-private-dev libxkbcommon-dev libglib2.0-dev libxrender-dev l
 
 ## Installation
 
-### Compilation
+### Configuration
+
+Have a look inside `meson_options.txt` to see what options you might want to
+change while configuring the project, and then:
 
 ```shell
 meson setup build -Dprefix=${INSTALL_PATH}/usr -Dglobal_install=false
-ninja -C build install
 ```
 
-### Keyboard layouts
-
-Install windows specific layouts
+### Compilation
 
 ```shell
-mkdir -p $HOME/.xkb/rules/ && cp -rf xkb/rules/* $HOME/.xkb/rules/
-mkdir -p $HOME/.xkb/symbols/ && cp -rf xkb/symbols/* $HOME/.xkb/symbols/
-mkdir -p $HOME/.xkb/types/ && cp -rf xkb/types/* $HOME/.xkb/types/
+ninja -C build install
 ```
 
 ## Using

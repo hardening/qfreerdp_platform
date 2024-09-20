@@ -41,11 +41,11 @@ public:
     QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height);
     ~QFreeRdpScreen();
 
-    virtual QRect geometry() const;
-    virtual int depth() const;
-    virtual QImage::Format format() const;
-    virtual qreal refreshRate() const;
-    virtual QPlatformCursor *cursor() const;
+    QRect geometry() const override;
+    int depth() const override;
+    QImage::Format format() const override;
+    qreal refreshRate() const override;
+    QPlatformCursor *cursor() const override;
 
     QImage *getScreenBits() { return mScreenBits; }
 public slots:

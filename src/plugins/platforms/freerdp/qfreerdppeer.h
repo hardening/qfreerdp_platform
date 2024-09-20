@@ -73,7 +73,7 @@ protected:
 	void repaint_raw(const QRegion &rect);
 	bool repaint_egfx(const QRegion &rect, bool compress);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
-	void updateMouseButtonsFromFlags(DWORD flags, bool extended);
+	void updateMouseButtonsFromFlags(DWORD flags, bool &down, bool extended);
 	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
 	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate);
@@ -128,6 +128,7 @@ protected:
 
     QPoint mLastMousePos;
     Qt::MouseButtons mLastButtons;
+    Qt::MouseButton mCurrentButton;
     quint32 mKeyTime;
 
     /** @brief how to render screen content updates */
