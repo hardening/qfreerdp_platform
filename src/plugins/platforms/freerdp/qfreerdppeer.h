@@ -130,6 +130,7 @@ protected:
     Qt::MouseButtons mLastButtons;
     Qt::MouseButton mCurrentButton;
     quint32 mKeyTime;
+    QHash<quint32, bool> mScanCodesDown;
 
     /** @brief how to render screen content updates */
     enum RenderMode {
