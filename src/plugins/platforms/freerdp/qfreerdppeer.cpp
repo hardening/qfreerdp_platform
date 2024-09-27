@@ -1806,10 +1806,20 @@ xkb_keysym_t QFreeRdpPeer::getXkbSymbol(const quint32 &scanCode, const bool &isD
 	 * xkb_keysym_get_name(sym, buffer, sizeSymbolName);
 	 * qDebug("%s: sym=%d, scanCode=%d, keysym=%s", __func__, sym, scanCode, buffer); */
 
+	// Do not update state on key repeat, as libxkbcommon expects each
+	// XKB_KEY_DOWN event to have a matching XKB_KEY_UP, and windows like to
+	// send repeat key event when modifiers are held down. If not handled, this
+	// results in stuck modifiers.
+	// https://xkbcommon.org/doc/current/group__state.html#gac554aa20743a621692c1a744a05e06ce
+	if (isDown == mScanCodesDown.value(scanCode))
+		return sym;
+
 	// update xkb state
 	xkb_state_update_key(mXkbState, scanCode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
 
-	// return symbol
+	// update our own state keeping track of which physical keys are currently held down
+	mScanCodesDown.insert(scanCode, isDown);
+
 	return sym;
 }
 
