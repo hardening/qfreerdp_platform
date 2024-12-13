@@ -55,7 +55,6 @@
 #include <QtGui/private/qguiapplication_p.h>
 #include <QtCore/qmath.h>
 #include <X11/keysym.h>
-#include <ctype.h>
 
 #include <freerdp/locale/keyboard.h>
 
@@ -294,6 +293,8 @@ static Qt::KeyboardModifiers translateModifiers(xkb_state *state, xkb_keycode_t 
         ret |= Qt::AltModifier;
     if (isXkbModifierSet(state, keymap, "Mod1", key))
         ret |= Qt::AltModifier;
+    if (isXkbModifierSet(state, keymap, "Mod2", key))
+        ret |= Qt::KeypadModifier;
     if (isXkbModifierSet(state, keymap, "Mod4", key))
         ret |= Qt::MetaModifier;
 
@@ -408,45 +409,323 @@ static const uint32_t KeyTbl[] = {
     0,                          0
 };
 
-static int keysymToQtKey(xkb_keysym_t key)
-{
-    int code = 0;
-    int i = 0;
-    while (KeyTbl[i]) {
-        if (key == KeyTbl[i]) {
-            code = (int)KeyTbl[i+1];
-            break;
-        }
-        i += 2;
-    }
+static int keysymToQtKey(xkb_keysym_t key) {
+	int code = 0;
+	int i = 0;
+	while (KeyTbl[i]) {
+		if (key == KeyTbl[i]) {
+			code = (int)KeyTbl[i+1];
+			break;
+		}
+		i += 2;
+	}
 
-    return code;
+	return code;
 }
 
-static int keysymToQtKey(xkb_keysym_t keysym, Qt::KeyboardModifiers &modifiers, const QString &text)
-{
-    int code = 0;
 
-    if (keysym >= XKB_KEY_F1 && keysym <= XKB_KEY_F35) {
-        code =  Qt::Key_F1 + (int(keysym) - XKB_KEY_F1);
-    } else if (keysym >= XKB_KEY_KP_Space && keysym <= XKB_KEY_KP_9) {
-        if (keysym >= XKB_KEY_KP_0) {
-            // numeric keypad keys
-            code = Qt::Key_0 + ((int)keysym - XKB_KEY_KP_0);
-        } else {
-            code = keysymToQtKey(keysym);
-        }
-        modifiers |= Qt::KeypadModifier;
-    } else if (text.length() == 1 && text.unicode()->unicode() > 0x1f
-        && text.unicode()->unicode() != 0x7f
-        && !(keysym >= XKB_KEY_dead_grave && keysym <= XKB_KEY_dead_currency)) {
-        code = text.unicode()->toUpper().unicode();
-    } else {
-        // any other keys
-        code = keysymToQtKey(keysym);
-    }
+struct QtKeyboardLayoutLine {
+	Qt::Key noMod;
+	Qt::Key keypad;
+};
 
-    return code;
+/* This array was crafted from freerdp's KEYCODE_TO_VKCODE_XKB, manually
+ * testing the correspondence between XKB keycodes and Qt::Keys using a
+ * standard ISO keyboard, configured to the `us` layout, on a wayland host
+ * (libxkbcommon).
+ *
+ * More obscure keycodes were searched for in /usr/share/X11/xkb/
+ * */
+static QtKeyboardLayoutLine KEYCODE_TO_QT_KEY[256] = {
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 0 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 1 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 2 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 3 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 4 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 5 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 6 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 7 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 8 */
+	{Qt::Key_Escape,        Qt::Key_Escape},        /* <ESC> 9 */
+	{Qt::Key_1,             Qt::Key_1},             /* <AE01> 10 */
+	{Qt::Key_2,             Qt::Key_2},             /* <AE02> 11 */
+	{Qt::Key_3,             Qt::Key_3},             /* <AE03> 12 */
+	{Qt::Key_4,             Qt::Key_4},             /* <AE04> 13 */
+	{Qt::Key_5,             Qt::Key_5},             /* <AE05> 14 */
+	{Qt::Key_6,             Qt::Key_6},             /* <AE06> 15 */
+	{Qt::Key_7,             Qt::Key_7},             /* <AE07> 16 */
+	{Qt::Key_8,             Qt::Key_8},             /* <AE08> 17 */
+	{Qt::Key_9,             Qt::Key_9},             /* <AE09> 18 */
+	{Qt::Key_0,             Qt::Key_0},             /* <AE10> 19 */
+	{Qt::Key_Minus,         Qt::Key_Minus},         /* <AE11> 20 */
+	{Qt::Key_Equal,         Qt::Key_Equal},         /* <AE12> 21 */
+	{Qt::Key_Backspace,     Qt::Key_Backspace},     /* <BKSP> 22 */
+	{Qt::Key_Tab,           Qt::Key_Tab},           /* <TAB> 23 */
+	{Qt::Key_Q,             Qt::Key_Q},             /* <AD01> 24 */
+	{Qt::Key_W,             Qt::Key_W},             /* <AD02> 25 */
+	{Qt::Key_E,             Qt::Key_E},             /* <AD03> 26 */
+	{Qt::Key_R,             Qt::Key_R},             /* <AD04> 27 */
+	{Qt::Key_T,             Qt::Key_T},             /* <AD05> 28 */
+	{Qt::Key_Y,             Qt::Key_Y},             /* <AD06> 29 */
+	{Qt::Key_U,             Qt::Key_U},             /* <AD07> 30 */
+	{Qt::Key_I,             Qt::Key_I},             /* <AD08> 31 */
+	{Qt::Key_O,             Qt::Key_O},             /* <AD09> 32 */
+	{Qt::Key_P,             Qt::Key_P},             /* <AD10> 33 */
+	{Qt::Key_BracketLeft,   Qt::Key_BracketLeft},   /* <AD11> 34 */
+	{Qt::Key_BraceRight,    Qt::Key_BraceRight},    /* <AD12> 35 */
+	{Qt::Key_Return,        Qt::Key_Return},        /* <RTRN> 36 */
+	{Qt::Key_Control,       Qt::Key_Control},       // | Qt::ControlModifier   /* <LCTL> 37 */
+	{Qt::Key_A,             Qt::Key_A},             /* <AC01> 38 */
+	{Qt::Key_S,             Qt::Key_S},             /* <AC02> 39 */
+	{Qt::Key_D,             Qt::Key_D},             /* <AC03> 40 */
+	{Qt::Key_F,             Qt::Key_F},             /* <AC04> 41 */
+	{Qt::Key_G,             Qt::Key_G},             /* <AC05> 42 */
+	{Qt::Key_H,             Qt::Key_H},             /* <AC06> 43 */
+	{Qt::Key_J,             Qt::Key_J},             /* <AC07> 44 */
+	{Qt::Key_K,             Qt::Key_K},             /* <AC08> 45 */
+	{Qt::Key_L,             Qt::Key_L},             /* <AC09> 46 */
+	{Qt::Key_Semicolon,     Qt::Key_Semicolon},     /* <AC10> 47 */
+	{Qt::Key_Apostrophe,    Qt::Key_Apostrophe},    /* <AC11> 48 */
+	{Qt::Key_QuoteLeft,     Qt::Key_QuoteLeft},     /* <TLDE> 49 */
+	{Qt::Key_Shift,         Qt::Key_Shift},         // | Qt::ShiftModifier     /* <LFSH> 50; Qt doesn't distinguish left and right shift here */
+	{Qt::Key_Backslash,     Qt::Key_Backslash},     /* <BKSL> <AC12> 51 */
+	{Qt::Key_Z,             Qt::Key_Z},             /* <AB01> 52 */
+	{Qt::Key_X,             Qt::Key_X},             /* <AB02> 53 */
+	{Qt::Key_C,             Qt::Key_C},             /* <AB03> 54 */
+	{Qt::Key_V,             Qt::Key_V},             /* <AB04> 55 */
+	{Qt::Key_B,             Qt::Key_B},             /* <AB05> 56 */
+	{Qt::Key_N,             Qt::Key_N},             /* <AB06> 57 */
+	{Qt::Key_M,             Qt::Key_M},             /* <AB07> 58 */
+	{Qt::Key_Comma,         Qt::Key_Comma},         /* <AB08> 59 */
+	{Qt::Key_Period,        Qt::Key_Period},        /* <AB09> 60 */
+	{Qt::Key_Slash,         Qt::Key_Slash},         /* <AB10> 61 */
+	{Qt::Key_Shift,         Qt::Key_Shift},         // | Qt::ShiftModifier     /* <RTSH> 62; Qt doesn't distinguish left and right shift here */
+	{Qt::Key_Asterisk,      Qt::Key_Asterisk},      // | Qt::KeypadModifier   /* <KPMU> 63 */
+	{Qt::Key_Alt,           Qt::Key_Alt},           // | Qt::AltModifier      /* <LALT> 64 */
+	{Qt::Key_Space,         Qt::Key_Space},         /* <SPCE> 65 */
+	{Qt::Key_CapsLock,      Qt::Key_CapsLock},      /* <CAPS> 66 */
+	{Qt::Key_F1,            Qt::Key_F1},            /* <FK01> 67 */
+	{Qt::Key_F2,            Qt::Key_F2},            /* <FK02> 68 */
+	{Qt::Key_F3,            Qt::Key_F3},            /* <FK03> 69 */
+	{Qt::Key_F4,            Qt::Key_F4},            /* <FK04> 70 */
+	{Qt::Key_F5,            Qt::Key_F5},            /* <FK05> 71 */
+	{Qt::Key_F6,            Qt::Key_F6},            /* <FK06> 72 */
+	{Qt::Key_F7,            Qt::Key_F7},            /* <FK07> 73 */
+	{Qt::Key_F8,            Qt::Key_F8},            /* <FK08> 74 */
+	{Qt::Key_F9,            Qt::Key_F9},            /* <FK09> 75 */
+	{Qt::Key_F10,           Qt::Key_F10},           /* <FK10> 76 */
+	{Qt::Key_NumLock,       Qt::Key_NumLock},       /* <NMLK> 77 */
+	{Qt::Key_ScrollLock,    Qt::Key_ScrollLock},    /* <SCLK> 78 */
+
+	/* Keypad */
+	{Qt::Key_Home,          Qt::Key_7},             /* <KP7> 79 */
+	{Qt::Key_Up,            Qt::Key_8},             /* <KP8> 80 */
+	{Qt::Key_PageUp,        Qt::Key_9},             /* <KP9> 81 */
+	{Qt::Key_Minus,         Qt::Key_Minus},         /* <KPSU> 82 */
+	{Qt::Key_Left,          Qt::Key_4},             /* <KP4> 83 */
+	{Qt::Key_Clear,         Qt::Key_5},             /* <KP5> 84 */
+	{Qt::Key_Right,         Qt::Key_6},             /* <KP6> 85 */
+	{Qt::Key_Plus,          Qt::Key_Plus},          /* <KPAD> 86 */
+	{Qt::Key_End,           Qt::Key_1},             /* <KP1> 87 */
+	{Qt::Key_Down,          Qt::Key_2},             /* <KP2> 88 */
+	{Qt::Key_PageDown,      Qt::Key_3},             /* <KP3> 89 */
+	{Qt::Key_Insert,        Qt::Key_0},             /* <KP0> 90 */
+	{Qt::Key_Delete,        Qt::Key_Period},        /* <KPDL> 91 */
+
+	{Qt::Key_Alt,           Qt::Key_Alt},           /* <LVL3> 92; this keycode might be sent by some AltGr? */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 93 */
+	{Qt::Key_Less,          Qt::Key_Less},          /* <LSGT> 94 */
+	{Qt::Key_F11,           Qt::Key_F11},           /* <FK11> 95 */
+	{Qt::Key_F12,           Qt::Key_F12},           /* <FK12> 96 */
+	{Qt::Key_Backslash,     Qt::Key_Backslash},     /* <AB11> 97; FIXME: I haven't been able to actually confirm this one */
+	{Qt::Key_unknown,       Qt::Key_unknown},       // VK_DBE_KATAKANA,      /* <KATA> 98 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       // VK_DBE_HIRAGANA,      /* <HIRA> 99 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       // VK_CONVERT,           /* <HENK> 100 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       // VK_HKTG,              /* <HKTG> 101 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       // VK_NONCONVERT,        /* <MUHE> 102 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <JPCM> 103 */
+	{Qt::Key_Return,        Qt::Key_Return},        /* <KPEN> 104 */
+	{Qt::Key_Control,       Qt::Key_Control},       // | Qt::ControlModifier /* <RCTL> 105 */
+	{Qt::Key_Slash,         Qt::Key_Slash},         // | Qt::KeypadModifier  /* <KPDV> 106 */
+	{Qt::Key_Print,         Qt::Key_Print},         /* <PRSC> 107 */
+	{Qt::Key_Alt,           Qt::Key_Alt},           // | Qt::AltModifier  /* <RALT> <ALGR> 108 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <LNFD> KEY_LINEFEED 109 */
+	{Qt::Key_Home,          Qt::Key_Home},          /* <HOME> 110 */
+	{Qt::Key_Up,            Qt::Key_Up},            /* <UP> 111 */
+	{Qt::Key_PageUp,        Qt::Key_PageUp},        /* <PGUP> 112 */
+	{Qt::Key_Left,          Qt::Key_Left},          /* <LEFT> 113 */
+	{Qt::Key_Right,         Qt::Key_Right},         /* <RGHT> 114 */
+	{Qt::Key_End,           Qt::Key_End},           /* <END> 115 */
+	{Qt::Key_Down,          Qt::Key_Down},          /* <DOWN> 116 */
+	{Qt::Key_PageDown,      Qt::Key_PageDown},      /* <PGDN> 117 */
+	{Qt::Key_Insert,        Qt::Key_Insert},        /* <INS> 118 */
+	{Qt::Key_Delete,        Qt::Key_Delete},        /* <DELE> 119 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I120> KEY_MACRO 120 */
+	{Qt::Key_VolumeMute,    Qt::Key_VolumeMute},    /* <MUTE> 121 */
+	{Qt::Key_VolumeMute,    Qt::Key_VolumeMute},    /* <VOL-> 122 */
+	{Qt::Key_VolumeMute,    Qt::Key_VolumeMute},    /* <VOL+> 123 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <POWR> 124 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <KPEQ> 125 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I126> KEY_KPPLUSMINUS 126 */
+	{Qt::Key_Pause,         Qt::Key_Pause},         /* <PAUS> 127 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I128> KEY_SCALE 128 */
+	{Qt::Key_Period,        Qt::Key_Period},        /* <I129> <KPPT> KEY_KPCOMMA 129; looks like the normal keypad period but without delete */
+	{Qt::Key_Hangul,        Qt::Key_Hangul},        /* <HNGL> 130 */
+	{Qt::Key_Hangul_Hanja,  Qt::Key_Hangul_Hanja},  /* <HJCV> 131 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <AE13> 132; FIXME: no idea */
+	{Qt::Key_Meta,          Qt::Key_Meta},          // | Qt::MetaModifier             /* <LWIN> <LMTA> 133 */
+	{Qt::Key_Meta,          Qt::Key_Meta},          // | Qt::MetaModifier             /* <RWIN> <RMTA> 134 */
+	{Qt::Key_Menu,          Qt::Key_Menu},          /* <COMP> <MENU> 135 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <STOP> 136 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <AGAI> 137 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <PROP> 138 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <UNDO> 139 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <FRNT> 140 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <COPY> 141 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <OPEN> 142 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <PAST> 143 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <FIND> 144 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <CUT> 145 */
+	{Qt::Key_Help,          Qt::Key_Help},          /* <HELP> 146 */
+	{Qt::Key_Menu,          Qt::Key_Menu},          /* <I147> KEY_MENU 147 */
+	{Qt::Key_Calculator,    Qt::Key_Calculator},    /* <I148> KEY_CALC 148 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I149> KEY_SETUP 149 */
+	{Qt::Key_Sleep,         Qt::Key_Sleep},         /* <I150> KEY_SLEEP 150 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I151> KEY_WAKEUP 151 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I152> KEY_FILE 152 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I153> KEY_SEND 153 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I154> KEY_DELETEFILE 154 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I155> KEY_XFER 155 */
+	{Qt::Key_Launch0,       Qt::Key_Launch0},       /* <I156> KEY_PROG1 156; FIXME: actual Key_Launch number unknown */
+	{Qt::Key_Launch1,       Qt::Key_Launch1},       /* <I157> KEY_PROG2 157; FIXME: actual Key_Launch number unknown */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I158> KEY_WWW 158 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I159> KEY_MSDOS 159 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I160> KEY_COFFEE 160 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I161> KEY_DIRECTION 161 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I162> KEY_CYCLEWINDOWS 162 */
+	{Qt::Key_LaunchMail,    Qt::Key_LaunchMail},    /* <I163> KEY_MAIL 163 */
+	{Qt::Key_Favorites,     Qt::Key_Favorites},     /* <I164> KEY_BOOKMARKS 164 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I165> KEY_COMPUTER 165 */
+	{Qt::Key_Back,          Qt::Key_Back},          /* <I166> KEY_BACK 166 */
+	{Qt::Key_Forward,       Qt::Key_Forward},       /* <I167> KEY_FORWARD 167 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I168> KEY_CLOSECD 168 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I169> KEY_EJECTCD 169 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I170> KEY_EJECTCLOSECD 170 */
+	{Qt::Key_MediaNext,     Qt::Key_MediaNext},     /* <I171> KEY_NEXTSONG 171 */
+	{Qt::Key_MediaPlay,     Qt::Key_MediaPlay},     /* <I172> KEY_PLAYPAUSE 172 */
+	{Qt::Key_MediaPrevious, Qt::Key_MediaPrevious}, /* <I173> KEY_PREVIOUSSONG 173 */
+	{Qt::Key_MediaStop,     Qt::Key_MediaStop},     /* <I174> KEY_STOPCD 174 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I175> KEY_RECORD 175 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I176> KEY_REWIND 176 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I177> KEY_PHONE 177 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I178> KEY_ISO 178 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I179> KEY_CONFIG 179 */
+	{Qt::Key_HomePage,      Qt::Key_HomePage},      /* <I180> KEY_HOMEPAGE 180 */
+	{Qt::Key_Refresh,       Qt::Key_Refresh},       /* <I181> KEY_REFRESH 181 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I182> KEY_EXIT 182 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I183> KEY_MOVE 183 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I184> KEY_EDIT 184 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I185> KEY_SCROLLUP 185 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I186> KEY_SCROLLDOWN 186 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I187> KEY_KPLEFTPAREN 187 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I188> KEY_KPRIGHTPAREN 188 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I189> KEY_NEW 189 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I190> KEY_REDO 190 */
+	{Qt::Key_F13,           Qt::Key_F13},           /* <FK13> 191 */
+	{Qt::Key_F14,           Qt::Key_F14},           /* <FK14> 192 */
+	{Qt::Key_F15,           Qt::Key_F15},           /* <FK15> 193 */
+	{Qt::Key_F16,           Qt::Key_F16},           /* <FK16> 194 */
+	{Qt::Key_F17,           Qt::Key_F17},           /* <FK17> 195 */
+	{Qt::Key_F18,           Qt::Key_F18},           /* <FK18> 196 */
+	{Qt::Key_F19,           Qt::Key_F19},           /* <FK19> 197 */
+	{Qt::Key_F20,           Qt::Key_F20},           /* <FK20> 198 */
+	{Qt::Key_F21,           Qt::Key_F21},           /* <FK21> 199 */
+	{Qt::Key_F22,           Qt::Key_F22},           /* <FK22> 200 */
+	{Qt::Key_F23,           Qt::Key_F23},           /* <FK23> 201 */
+	{Qt::Key_F24,           Qt::Key_F24},           /* <FK24> 202 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <MDSW> 203 */
+	{Qt::Key_Alt,           Qt::Key_Alt},           /* <ALT> 204 */
+	{Qt::Key_Meta,          Qt::Key_Meta},          /* <META> 205 */
+	{Qt::Key_Super_L,       Qt::Key_Super_L},       /* <SUPR> 206; not sure when this one happens instead of <LWIN> */
+	{Qt::Key_Hyper_L,       Qt::Key_Hyper_L},       /* <HYPR> 207 */
+	{Qt::Key_MediaPlay,     Qt::Key_MediaPlay},     /* <I208> KEY_PLAYCD 208 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I209> KEY_PAUSECD 209 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I210> KEY_PROG3 210 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I211> KEY_PROG4 211 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I212> KEY_DASHBOARD 212 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I213> KEY_SUSPEND 213 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I214> KEY_CLOSE 214 */
+	{Qt::Key_MediaPlay,     Qt::Key_MediaPlay},     /* <I215> KEY_PLAY 215 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I216> KEY_FASTFORWARD 216 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I217> KEY_BASSBOOST 217 */
+	{Qt::Key_Print,         Qt::Key_Print},         /* <I218> KEY_PRINT 218 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I219> KEY_HP 219 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I220> KEY_CAMERA 220 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I221> KEY_SOUND 221 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I222> KEY_QUESTION 222 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I223> KEY_EMAIL 223 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I224> KEY_CHAT 224 */
+	{Qt::Key_Search,        Qt::Key_Search},        /* <I225> KEY_SEARCH 225 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I226> KEY_CONNECT 226 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I227> KEY_FINANCE 227 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I228> KEY_SPORT 228 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I229> KEY_SHOP 229 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I230> KEY_ALTERASE 230 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I231> KEY_CANCEL 231 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I232> KEY_BRIGHTNESSDOWN 232 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I233> KEY_BRIGHTNESSUP 233 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I234> KEY_MEDIA 234 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I235> KEY_SWITCHVIDEOMODE 235 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I236> KEY_KBDILLUMTOGGLE 236 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I237> KEY_KBDILLUMDOWN 237 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I238> KEY_KBDILLUMUP 238 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I239> KEY_SEND 239 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I240> KEY_REPLY 240 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I241> KEY_FORWARDMAIL 241 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I242> KEY_SAVE 242 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I243> KEY_DOCUMENTS 243 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I244> KEY_BATTERY 244 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I245> KEY_BLUETOOTH 245 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I246> KEY_WLAN 246 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I247> KEY_UWB 247 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I248> KEY_UNKNOWN 248 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I249> KEY_VIDEO_NEXT 249 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I250> KEY_VIDEO_PREV 250 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I251> KEY_BRIGHTNESS_CYCLE 251 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I252> KEY_BRIGHTNESS_ZERO 252 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* <I253> KEY_DISPLAY_OFF 253 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 254 */
+	{Qt::Key_unknown,       Qt::Key_unknown},       /* 255 */
+};
+
+/* Some Qt apps (qtwebengine-based ones in particular) have specialized native
+ * key event handling code will only work correctly on a few well known Qt
+ * platforms (eg. xcb, cocoa, windows, etc.). And when confronted with any
+ * other platform, will fall back to guessing the keycode from the
+ * `Qt::Key`[0].
+ *
+ * This will cause issues when connecting to qfreerdp with any keyboard layout
+ * that isn't the expected US (qwerty), as `Qt::Key` values are layout
+ * dependent.
+ *
+ * For (a lot) more detail, see nyanpasu64's excellent deep dive [1] on the
+ * subject, and the related bug on qtwebengine's bugtracker [2].
+ *
+ * Here, in order to try working around this issue, we always generate
+ * `Qt::Key` from the xkb keycode (representative of the physical layout),
+ * instead of the xkb key symbol (keysym) (computed based on the current active
+ * layout).
+ *
+ * [0] - https://github.com/qt/qtwebengine/blob/6.4.2/src/core/web_event_factory.cpp#L1670
+ * [1] - https://forum.qt.io/topic/116544/how-is-qkeyevent-supposed-to-be-used-for-games/7?_=1734024377784&lang=en-US
+ * [2] - https://bugreports.qt.io/browse/QTBUG-85660
+ * */
+static Qt::Key keycodeToQwertyQtKey(xkb_keycode_t keycode, bool isKeyPad) {
+	if (keycode > 0xff)
+		return Qt::Key_unknown;
+
+	QtKeyboardLayoutLine code = KEYCODE_TO_QT_KEY[keycode & 0xff];
+	return isKeyPad ? code.keypad : code.noMod;
 }
 
 void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleNames) {
@@ -600,6 +879,7 @@ void QFreeRdpPeer::sendFullRefresh(rdpSettings *settings) {
 
 BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
 {
+	// qDebug("QFreeRdpPeer::%s()", __func__);
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
 	rdpSettings *settings = rdpPeer->mClient->context->settings;
@@ -1408,6 +1688,35 @@ void QFreeRdpPeer::updateModifiersState(bool capsLock, bool numLock, bool scroll
 }
 
 
+Qt::Key QFreeRdpPeer::keysymToQtKey(xkb_keysym_t keysym, xkb_keycode_t keycode, Qt::KeyboardModifiers &modifiers, const QString &text) {
+	quint32 code = 0;
+
+	if (this->mPlatform->mConfig->force_qwerty_events)
+		return ::keycodeToQwertyQtKey(keycode, modifiers & Qt::KeypadModifier);
+
+	if (keysym >= XKB_KEY_F1 && keysym <= XKB_KEY_F35) {
+		code =  Qt::Key_F1 + (quint32(keysym) - XKB_KEY_F1);
+	} else if (keysym >= XKB_KEY_KP_Space && keysym <= XKB_KEY_KP_9) {
+		if (keysym >= XKB_KEY_KP_0) {
+			// numeric keypad keys
+			code = Qt::Key_0 + ((quint32)keysym - XKB_KEY_KP_0);
+		} else {
+			code = ::keysymToQtKey(keysym);
+		}
+		modifiers |= Qt::KeypadModifier;
+	} else if (text.length() == 1 && text.unicode()->unicode() > 0x1f
+		&& text.unicode()->unicode() != 0x7f
+		&& !(keysym >= XKB_KEY_dead_grave && keysym <= XKB_KEY_dead_currency)) {
+		code = text.unicode()->toUpper().unicode();
+	} else {
+		// any other keys
+		code = ::keysymToQtKey(keysym);
+	}
+
+	return static_cast<Qt::Key>(code);
+}
+
+
 void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	// check XkbState
 	if (mXkbState == NULL) {
@@ -1419,47 +1728,49 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 	if(flags & KBD_FLAGS_EXTENDED)
 		vk_code |= KBDEXT;
 
-	// get scan code
-#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 1 || FREERDP_VERSION_MAJOR > 3
-	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
-#else
-	quint32 scancode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
-#endif
-
 	// check if key is down or up
 	bool isDown = !(flags & KBD_FLAGS_RELEASE);
 
 #ifndef NO_XKB_SUPPORT
+	// get scan code
+#if FREERDP_VERSION_MAJOR == 3 && FREERDP_VERSION_MINOR >= 1 || FREERDP_VERSION_MAJOR > 3
+	xkb_keycode_t xkbKeycode = GetKeycodeFromVirtualKeyCode(vk_code, WINPR_KEYCODE_TYPE_XKB);
+#else
+	xkb_keycode_t xkbKeycode = GetKeycodeFromVirtualKeyCode(vk_code, KEYCODE_TYPE_EVDEV);
+#endif // FREERDP_VERSION
+
 	// get xkb symbol
-	xkb_keysym_t xsym = getXkbSymbol(scancode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
-	if (xsym == XKB_KEY_NoSymbol) {
+	xkb_keysym_t xkbKeysym = getXkbSymbol(xkbKeycode, (isDown ? XKB_KEY_DOWN : XKB_KEY_UP));
+	if (xkbKeysym == XKB_KEY_NoSymbol) {
 		return;
 	}
 	QString text;
 	xkb_compose_status status;
 	if (mXkbComposeState && isDown) {
-	    xkb_compose_state_feed(mXkbComposeState, xsym);
+		xkb_compose_state_feed(mXkbComposeState, xkbKeysym);
 	    status = xkb_compose_state_get_status(mXkbComposeState);
 	} else {
 	    status = XKB_COMPOSE_NOTHING;
 	}
 	switch (status) {
-	    case XKB_COMPOSE_NOTHING:
+	case XKB_COMPOSE_NOTHING:
 		// composition does not affect this event
-		text = keysymToUnicode(xsym);
+		text = keysymToUnicode(xkbKeysym);
 		break;;
-	    case XKB_COMPOSE_CANCELLED: // sequence has no associated event
+	case XKB_COMPOSE_CANCELLED: // sequence has no associated event
 		xkb_compose_state_reset(mXkbComposeState);
 		/* eat this event */
 		return;
-	    case XKB_COMPOSE_COMPOSING: // waiting for next key
+	case XKB_COMPOSE_COMPOSING: // waiting for next key
 		/* eat this event */
 		return;
-	    case XKB_COMPOSE_COMPOSED:
+
+	case XKB_COMPOSE_COMPOSED:
 		char buf[32];
 		xkb_compose_state_get_utf8(mXkbComposeState, buf, sizeof(buf));
 		text = QString::fromUtf8(buf);
 		qDebug() << "composed " << text;
+
 		xkb_compose_state_reset(mXkbComposeState);
 	}
 
@@ -1470,20 +1781,21 @@ void QFreeRdpPeer::handleVirtualKeycode(quint32 flags, quint32 vk_code) {
 		return;
 	}
 
-	// update Qt keyboard state
-	Qt::KeyboardModifiers modifiers = translateModifiers(mXkbState, scancode);
-	QEvent::Type type = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
+	// Get current modifiers state from xkb
+	Qt::KeyboardModifiers qtModifiers = translateModifiers(mXkbState, xkbKeycode);
+	QEvent::Type eventType = isDown ? QEvent::KeyPress : QEvent::KeyRelease;
 
+	// FIXME: What's the point here? oO
 	int count = text.size();
 	text.truncate(count);
 
-	uint32_t qtsym = keysymToQtKey(xsym, modifiers, text);
+	Qt::Key qtKey = keysymToQtKey(xkbKeysym, xkbKeycode, qtModifiers, text);
 
-	// qDebug("%s: vkCode=0x%x scanCode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x",
-	// 		__func__, vk_code, scancode, flags, xsym, qtsym, (int)modifiers, text.toUtf8().constData(), isDown);
+	// qDebug("%s: vkCode=0x%x xkb_keycode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x modifiers=0x%x text=%s, isDown=%x",
+	// 		__func__, vk_code, xkbKeycode, flags, xkbKeysym, qtKey, (int)qtModifiers, text.toUtf8().constData(), isDown);
 
 	// send key
-	sendKey(focusWindow->window(), ++mKeyTime, type, qtsym, modifiers, scancode, xsym, 0,text);
+	sendKey(focusWindow->window(), ++mKeyTime, eventType, qtKey, qtModifiers, xkbKeycode, xkbKeysym, 0,text);
 
 #endif
 

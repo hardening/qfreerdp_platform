@@ -182,6 +182,8 @@ private :
 
 #ifndef NO_XKB_SUPPORT
 	xkb_keysym_t getXkbSymbol(const quint32 &scanCode, const bool &isDown);
+	Qt::Key keysymToQtKey(xkb_keysym_t keysym, xkb_keycode_t keycode,
+			Qt::KeyboardModifiers &modifiers, const QString &text);
 #endif
 };
 
