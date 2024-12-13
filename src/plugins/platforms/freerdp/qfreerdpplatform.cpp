@@ -73,6 +73,7 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	fps(24),
 	clipboard_enabled(true),
 	egfx_enabled(true),
+	force_qwerty_events(false),
 	secrets_file(nullptr),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT),
@@ -173,8 +174,11 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			} else if (mode == "optimize") {
 				displayMode = DisplayMode::OPTIMIZE;
 			} else {
-				displayMode = DisplayMode::AUTODETECT;
+				qWarning() << "invalid display mode" << mode;
 			}
+		} else if(param == "forceQwertyEvents") {
+			qDebug("Forcing Qt::Key events to Qwerty");
+			force_qwerty_events = true;
 		}
 	}
 }
