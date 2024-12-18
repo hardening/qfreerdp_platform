@@ -22,8 +22,6 @@
 #ifndef __QFREERDPPEER_H__
 #define __QFREERDPPEER_H__
 
-#include <memory>
-
 #include <freerdp/peer.h>
 #include <freerdp/pointer.h>
 #include <freerdp/server/rdpgfx.h>
@@ -31,12 +29,9 @@
 #include <QImage>
 #include <QMap>
 
-#ifndef NO_XKB_SUPPORT
-#include <xkbcommon/xkbcommon.h>
-#include <xkbcommon/xkbcommon-compose.h>
-#endif
 
 #include "qfreerdpcompositor.h"
+#include "qfreerdppeerkeyboard.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -74,7 +69,6 @@ protected:
 	bool repaint_egfx(const QRegion &rect, bool compress);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateMouseButtonsFromFlags(DWORD flags, bool &down, bool extended);
-	void updateModifiersState(bool capsLock, bool numLock, bool scrollLock, bool kanaLock);
 	void init_display(freerdp_peer* client);
 	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate);
 	bool initializeChannels();
@@ -129,8 +123,7 @@ protected:
     QPoint mLastMousePos;
     Qt::MouseButtons mLastButtons;
     Qt::MouseButton mCurrentButton;
-    quint32 mKeyTime;
-    QHash<quint32, bool> mScanCodesDown;
+    QFreeRdpPeerKeyboard mKeyboard;
 
     /** @brief how to render screen content updates */
     enum RenderMode {
@@ -160,18 +153,6 @@ protected:
 	CursorCache mCursorCache;
 
 
-#ifndef NO_XKB_SUPPORT
-    struct xkb_context *mXkbContext;
-    struct xkb_keymap *mXkbKeymap;
-    struct xkb_state *mXkbState;
-    struct xkb_compose_state *mXkbComposeState;
-    struct xkb_compose_table *mXkbComposeTable;
-
-	xkb_mod_index_t mCapsLockModIndex;
-	xkb_mod_index_t mNumLockModIndex;
-	xkb_mod_index_t mScrollLockModIndex;
-#endif
-
 private :
 	void sendFullRefresh(rdpSettings *settings);
 	void paintBitmap(const QVector<QRect> &rects);
@@ -179,12 +160,6 @@ private :
 	BOOL detectDisplaySettings(freerdp_peer* client);
 	BOOL configureDisplayLegacyMode(rdpSettings *settings);
 	BOOL configureOptimizeMode(rdpSettings *settings);
-
-#ifndef NO_XKB_SUPPORT
-	xkb_keysym_t getXkbSymbol(const quint32 &scanCode, const bool &isDown);
-	Qt::Key keysymToQtKey(xkb_keysym_t keysym, xkb_keycode_t keycode,
-			Qt::KeyboardModifiers &modifiers, const QString &text);
-#endif
 };
 
 QT_END_NAMESPACE
