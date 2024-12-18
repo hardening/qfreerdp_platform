@@ -10,6 +10,7 @@ sources = [
     'qfreerdpwindow.cpp',
     'qfreerdppeer.cpp',
     'qfreerdppeerclipboard.cpp',
+    'qfreerdppeerkeyboard.cpp',
     'qfreerdpwindowmanager.cpp',
     'qfreerdpwmwidgets.cpp',
     'xcursors/xcursor.cpp',
@@ -35,6 +36,7 @@ moc_headers = [
     'qfreerdpbackingstore.h',
     'qfreerdppeer.h',
     'qfreerdppeerclipboard.h',
+    'qfreerdppeerkeyboard.h',
     'qfreerdpwindowmanager.h',
     'qfreerdpwmwidgets.h',
 ]
