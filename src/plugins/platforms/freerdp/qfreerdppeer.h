@@ -142,7 +142,6 @@ protected:
     bool mNsCodecSupported;
     QFreeRdpCompositor mCompositor;
     RenderMode mRenderMode;
-    QRegion mDirtyRegion;
 
     HANDLE mVcm;
     QFreerdpPeerClipboard *mClipboard;

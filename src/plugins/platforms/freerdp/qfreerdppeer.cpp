@@ -1009,8 +1009,6 @@ void QFreeRdpPeer::init_display(freerdp_peer* client) {
 	POINTER_SYSTEM_UPDATE pointer_system;
 	pointer_system.type = SYSPTR_DEFAULT;
 	client->context->update->pointer->PointerSystem(client->context, &pointer_system);
-
-	rdpPeer->mDirtyRegion += peerGeometry;
 }
 
 
@@ -1138,11 +1136,7 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 	   mFlags.testFlag(PEER_WAITING_GRAPHICS))
 		return;
 
-	// First we compute the minimum area that really changed from Qt's updates,
-	// _then_ we add the region requested by the RDP client, as we don't want
-	// to send back incomplete updates.
-	QRegion dirty = mCompositor.qtToRdpDirtyRegion(mDirtyRegion);
-	dirty += region;
+	QRegion dirty = mCompositor.qtToRdpDirtyRegion(region);
 
 	// qDebug() << "QFreeRdpPeer::repaint(" << dirty << ")";
 
@@ -1158,8 +1152,6 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 	default:
 		break;
 	}
-
-	mDirtyRegion = QRegion();
 }
 
 void qimage_subrect(const QRect &rect, const QImage *img, BYTE *dest, bool flip_vertical) {
