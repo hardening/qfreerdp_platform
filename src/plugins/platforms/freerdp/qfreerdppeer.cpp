@@ -595,7 +595,7 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 void QFreeRdpPeer::sendFullRefresh(rdpSettings *settings) {
 	QRect refreshRect(0, 0, settings->DesktopWidth, settings->DesktopHeight);
 
-	repaint(QRegion(refreshRect));
+	repaint(QRegion(refreshRect), false);
 }
 
 BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
@@ -634,7 +634,10 @@ BOOL QFreeRdpPeer::xf_refresh_rect(rdpContext *context, BYTE count, const RECTAN
 		refreshRegion += QRect(rect.left, rect.top, rect.right, rect.bottom);
 	}
 
-	rdpPeer->repaint(refreshRegion);
+	// Do not try to reduce the size of the update using the compositor's
+	// cache. We got got asked for a certain size and we're going to send all
+	// of it.
+	rdpPeer->repaint(refreshRegion, false);
 
 	return TRUE;
 }
@@ -1129,7 +1132,7 @@ void QFreeRdpPeer::channelTraffic(int) {
 }
 
 
-void QFreeRdpPeer::repaint(const QRegion &region) {
+void QFreeRdpPeer::repaint(const QRegion &region, bool useCompositorCache) {
 	if(!mFlags.testFlag(PEER_ACTIVATED) ||
 	   mFlags.testFlag(PEER_OUTPUT_DISABLED) ||
 	   mFlags.testFlag(PEER_WAITING_DYNVC) ||
@@ -1137,6 +1140,11 @@ void QFreeRdpPeer::repaint(const QRegion &region) {
 		return;
 
 	QRegion dirty = mCompositor.qtToRdpDirtyRegion(region);
+	// We bypass the compositor only _after_ giving it the lastest update, so
+	// that its cache stays in sync with what we send to our peer.
+	if (!useCompositorCache)
+		dirty = region;
+
 
 	// qDebug() << "QFreeRdpPeer::repaint(" << dirty << ")";
 
