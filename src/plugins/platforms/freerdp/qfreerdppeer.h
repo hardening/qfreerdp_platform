@@ -69,7 +69,7 @@ protected:
 	// Sends bitmap updates for
 	// - the rectangles contained in `region`
 	// - rectangles internally marked as dirty
-	void repaint(const QRegion &rect);
+	void repaint(const QRegion &rect, bool useCompositorCache = true);
 	void repaint_raw(const QRegion &rect);
 	bool repaint_egfx(const QRegion &rect, bool compress);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
