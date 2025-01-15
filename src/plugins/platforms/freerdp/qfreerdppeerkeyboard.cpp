@@ -2,6 +2,7 @@
 #include <freerdp/peer.h>
 #include <freerdp/settings.h>
 #include <freerdp/types.h>
+#include <freerdp/version.h>
 
 #include "qfreerdpplatform.h"
 #include "qpa/qplatforminputcontext.h"

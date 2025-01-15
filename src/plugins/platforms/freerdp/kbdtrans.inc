@@ -356,7 +356,7 @@ static QtKeyboardLayoutLine XKB_KEYCODE_TO_QT_KEY[256] = {
 	{Qt::Key_Slash,         Qt::Key_Slash},         // | Qt::KeypadModifier  /* <KPDV> 106 */
 	{Qt::Key_Print,         Qt::Key_Print},         /* <PRSC> 107 */
 
-	{Qt::Key_Alt,           Qt::Key_Alt},           // | Qt::AltModifier  /* <RALT> <ALGR> 108 */
+	{Qt::Key_AltGr,         Qt::Key_AltGr},         // | Qt::AltModifier  /* <RALT> <ALGR> 108 */
 
 	{Qt::Key_unknown,       Qt::Key_unknown},       /* <LNFD> KEY_LINEFEED 109 */
 	{Qt::Key_Home,          Qt::Key_Home},          /* <HOME> 110 */
