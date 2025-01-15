@@ -35,6 +35,7 @@
 #include <freerdp/input.h>
 #include <freerdp/channels/cliprdr.h>
 #include <freerdp/channels/drdynvc.h>
+#include <freerdp/server/rdpgfx.h>
 
 #include "qfreerdpplatform.h"
 #include "qfreerdppeer.h"
