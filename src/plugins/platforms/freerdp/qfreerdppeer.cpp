@@ -584,11 +584,7 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 	RdpPeerContext *peerCtx = (RdpPeerContext *)input->context;
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
 
-	/* sends a full refresh */
-	// TODO: drop the full refresh ?
-	QRect refreshRect(0, 0, client->context->settings->DesktopWidth, client->context->settings->DesktopHeight);
-
-	rdpPeer->repaint(QRegion(refreshRect));
+	rdpPeer->sendFullRefresh(client->context->settings);
 	rdpPeer->updateModifiersState(flags & KBD_SYNC_CAPS_LOCK, flags & KBD_SYNC_NUM_LOCK,
 			flags & KBD_SYNC_SCROLL_LOCK,
 			flags & KBD_SYNC_KANA_LOCK);
@@ -596,6 +592,11 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 	return TRUE;
 }
 
+void QFreeRdpPeer::sendFullRefresh(rdpSettings *settings) {
+	QRect refreshRect(0, 0, settings->DesktopWidth, settings->DesktopHeight);
+
+	repaint(QRegion(refreshRect));
+}
 
 BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
 {
@@ -785,7 +786,7 @@ BOOL QFreeRdpPeer::xf_peer_activate(freerdp_peer *client) {
 	if (rdpPeer->mFlags & PEER_WAITING_DYNVC) {
 		rdpPeer->checkDrdynvcState();
 	} else {
-		rdpPeer->repaint(QRegion());
+		rdpPeer->sendFullRefresh(client->context->settings);
 	}
 	return TRUE;
 }

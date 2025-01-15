@@ -174,6 +174,7 @@ protected:
 #endif
 
 private :
+	void sendFullRefresh(rdpSettings *settings);
 	void paintBitmap(const QVector<QRect> &rects);
 	void paintSurface(const QVector<QRect> &rects);
 	BOOL detectDisplaySettings(freerdp_peer* client);
