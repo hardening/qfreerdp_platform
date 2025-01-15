@@ -224,8 +224,13 @@ QFreeRdpWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 }
 
 void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
-	if (w != mFocusWindow)
+	if (w != mFocusWindow) {
+#if QT_VERSION < 0x060700
 		QWindowSystemInterface::handleWindowActivated(w->window());
+#else
+		QWindowSystemInterface::handleFocusWindowChanged(w->window());
+#endif // QT_VERSION
+	}
 
 	mFocusWindow = w;
 }

@@ -130,7 +130,11 @@ void QFreeRdpWindow::setVisible(bool visible) {
 			QWindowSystemInterface::handleGeometryChange(window(), geometry());
 			mSentInitialResize = true;
 		}
+#if QT_VERSION < 0x060700
 		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
+#else
+		QWindowSystemInterface::handleFocusWindowChanged(window(), Qt::ActiveWindowFocusReason);
+#endif // QT_VERSION
 	}
 
 	mPlatform->mWindowManager->pushDirtyArea(outerWindowGeometry());
