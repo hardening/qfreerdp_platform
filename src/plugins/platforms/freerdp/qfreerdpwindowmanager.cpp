@@ -55,7 +55,7 @@ static bool isDecorableWindow(QWindow *window) {
 	switch(window->type()) {
 	case Qt::Dialog:
 	case Qt::Window:
-		return true;
+		return !(window->flags() & Qt::FramelessWindowHint);
 	default:
 		return false;
 	}
