@@ -83,7 +83,7 @@ struct QFreeRdpPlatformConfig {
 	int fps;
 	bool clipboard_enabled;
 	bool egfx_enabled;
-	bool force_qwerty_events;
+	bool qtwebengine_compat;
 	char *secrets_file;
 
 	QSize screenSz;
