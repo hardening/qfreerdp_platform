@@ -260,7 +260,7 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
   text.truncate(count);
 
   Qt::Key qtKey;
-  if (mPlatformConfig->force_qwerty_events)
+  if (mPlatformConfig->qtwebengine_compat)
     qtKey =
         xkbKeycodeToUsLayoutQtKey(xkbKeycode, qtModifiers & Qt::KeypadModifier);
   else
