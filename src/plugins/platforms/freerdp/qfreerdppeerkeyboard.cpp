@@ -13,6 +13,7 @@
 #include <QtGui/private/qguiapplication_p.h>
 
 #ifndef NO_XKB_SUPPORT
+#include <linux/input.h>
 #include <X11/keysym.h>
 #endif
 
@@ -72,38 +73,6 @@ static void sendKeyEvent(QWindow *tlw, ulong timestamp, QEvent::Type type,
         tlw, timestamp, type, key, modifiers, nativeScanCode, nativeVirtualKey,
         nativeModifiers, text, autorep, count);
   }
-}
-
-/* Some Qt apps (qtwebengine-based ones in particular) have specialized native
- * key event handling code will only work correctly on a few well known Qt
- * platforms (eg. xcb, cocoa, windows, etc.). And when confronted with any
- * other platform, will fall back to guessing the keycode from the
- * `Qt::Key`[0].
- *
- * This will cause issues when connecting to qfreerdp with any keyboard layout
- * that isn't the expected US (qwerty), as `Qt::Key` values are layout
- * dependent.
- *
- * For (a lot) more detail, see nyanpasu64's excellent deep dive [1] on the
- * subject, and the related bug on qtwebengine's bugtracker [2].
- *
- * Here, in order to try working around this issue, we always generate
- * `Qt::Key` from the xkb keycode (representative of the physical layout),
- * instead of the xkb key symbol (keysym) (computed based on the current active
- * layout).
- *
- * [0] -
- * https://github.com/qt/qtwebengine/blob/6.4.2/src/core/web_event_factory.cpp#L1670
- * [1] -
- * https://forum.qt.io/topic/116544/how-is-qkeyevent-supposed-to-be-used-for-games/7?_=1734024377784&lang=en-US
- * [2] - https://bugreports.qt.io/browse/QTBUG-85660
- * */
-static Qt::Key xkbKeycodeToUsLayoutQtKey(xkb_keycode_t keycode, bool isKeyPad) {
-  if (keycode > 0xff)
-    return Qt::Key_unknown;
-
-  QtKeyboardLayoutLine code = XKB_KEYCODE_TO_QT_KEY[keycode & 0xff];
-  return isKeyPad ? code.keypad : code.noMod;
 }
 
 static uint32_t xkbUnprintableKeysymToQtKey(xkb_keysym_t key) {
@@ -262,7 +231,7 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
   Qt::Key qtKey;
   if (mPlatformConfig->qtwebengine_compat)
     qtKey =
-        xkbKeycodeToUsLayoutQtKey(xkbKeycode, qtModifiers & Qt::KeypadModifier);
+        xkbKeycodeToUsLayoutQtKey(xkbKeycode);
   else
     qtKey = xkbKeysymToQtKey(xkbKeysym, qtModifiers, text);
 
@@ -457,10 +426,42 @@ QFreeRdpPeerKeyboard::getQtModsForXkbCode(xkb_keycode_t keycode) {
     ret |= Qt::ControlModifier;
   if (isXkbModSet(MOD_ALT, keycode))
     ret |= Qt::AltModifier;
-  if (isXkbModSet(MOD_NUM, keycode))
-    ret |= Qt::KeypadModifier;
   if (isXkbModSet(MOD_SUPER, keycode))
     ret |= Qt::MetaModifier;
+
+  // Qt::KeypadModifier does not have the same meaning as XKB's numlock: it
+  // only means that a certain key event originated from the keypad area of the
+  // physical keyboard. This modifier exists as otherwise Qt would not be able
+  // to tell the difference between Qt::Key_1 from the number row of the
+  // keyboard (XKB keycode <AE01> in most european layouts), and Qt::Key_1 from
+  // the numpad (<KP1>).
+  //
+  // Also, "for historical reasons", XKB keycodes match evdev scancodes with an
+  // offset of 8. For reference, see:
+  // https://xkbcommon.org/doc/current/keymap-text-format-v1.html#keycode-statements
+  switch (keycode) {
+    case 8 + KEY_KPASTERISK:
+    case 8 + KEY_KP7:
+    case 8 + KEY_KP8:
+    case 8 + KEY_KP9:
+    case 8 + KEY_KPMINUS:
+    case 8 + KEY_KP4:
+    case 8 + KEY_KP5:
+    case 8 + KEY_KP6:
+    case 8 + KEY_KPPLUS:
+    case 8 + KEY_KP1:
+    case 8 + KEY_KP2:
+    case 8 + KEY_KP3:
+    case 8 + KEY_KP0:
+    case 8 + KEY_KPDOT:
+    case 8 + KEY_KPJPCOMMA:
+    case 8 + KEY_KPENTER:
+    case 8 + KEY_KPSLASH:
+      ret |= Qt::KeypadModifier;
+      break;
+    default:
+      break;
+  }
 
   return ret;
 }
@@ -494,4 +495,37 @@ xkb_keysym_t QFreeRdpPeerKeyboard::getXkbSymbol(xkb_keycode_t keycode,
   mXkbKeycodesDown.insert(keycode, isDown);
 
   return keysym;
+}
+
+/* Some Qt apps (qtwebengine-based ones in particular) have specialized native
+ * key event handling code will only work correctly on a few well known Qt
+ * platforms (eg. xcb, cocoa, windows, etc.). And when confronted with any
+ * other platform, will fall back to guessing the keycode from the
+ * `Qt::Key`[0].
+ *
+ * This will cause issues when connecting to qfreerdp with any keyboard layout
+ * that isn't the expected US (qwerty), as `Qt::Key` values are layout
+ * dependent.
+ *
+ * For (a lot) more detail, see nyanpasu64's excellent deep dive [1] on the
+ * subject, and the related bug on qtwebengine's bugtracker [2].
+ *
+ * Here, in order to try working around this issue, we always generate
+ * `Qt::Key` from the xkb keycode (representative of the physical layout),
+ * instead of the xkb key symbol (keysym) (computed based on the current active
+ * layout).
+ *
+ * [0] -
+ * https://github.com/qt/qtwebengine/blob/6.4.2/src/core/web_event_factory.cpp#L1670
+ * [1] -
+ * https://forum.qt.io/topic/116544/how-is-qkeyevent-supposed-to-be-used-for-games/7?_=1734024377784&lang=en-US
+ * [2] - https://bugreports.qt.io/browse/QTBUG-85660
+ * */
+Qt::Key QFreeRdpPeerKeyboard::xkbKeycodeToUsLayoutQtKey(xkb_keycode_t keycode) {
+  if (keycode > 0xff)
+    return Qt::Key_unknown;
+
+  QtKeyboardLayoutLine code = XKB_KEYCODE_TO_QT_KEY[keycode & 0xff];
+  bool isKeyPad = xkb_state_led_name_is_active(this->mXkbState, XKB_LED_NAME_NUM) > 0;
+  return isKeyPad ? code.keypad : code.noMod;
 }

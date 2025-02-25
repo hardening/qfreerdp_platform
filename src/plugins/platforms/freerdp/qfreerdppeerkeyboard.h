@@ -42,6 +42,7 @@ private:
   bool isXkbModSet(xkbModIndices mod, xkb_keycode_t keycode);
   Qt::KeyboardModifiers getQtModsForXkbCode(xkb_keysym_t keycode);
   xkb_keysym_t getXkbSymbol(xkb_keycode_t keycode, bool isDown);
+  Qt::Key xkbKeycodeToUsLayoutQtKey(xkb_keycode_t keycode);
 #endif
 
 private:
