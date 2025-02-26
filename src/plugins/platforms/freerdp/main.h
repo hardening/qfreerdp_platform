@@ -21,7 +21,6 @@
  */
 
 #include <qpa/qplatformintegrationplugin.h>
-#include "qfreerdpplatform.h"
 
 #include <QtCore/private/qplugin_p.h>
 
@@ -30,7 +29,15 @@ QT_BEGIN_NAMESPACE
 class QFreeRdpIntegrationPlugin : public QPlatformIntegrationPlugin
 {
     Q_OBJECT
+
+#ifdef QFREERDP_MASQUERADE_XCB
+    #define QFREERDP_PLATFORM_NAME "xcb"
+    Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "qfreerdp-masquerade-xcb.json")
+#else
+    #define QFREERDP_PLATFORM_NAME "freerdp"
     Q_PLUGIN_METADATA(IID QPlatformIntegrationFactoryInterface_iid FILE "qfreerdp.json")
+#endif // QFREERDP_MASQUERADE_XCB
+
 public:
     QStringList keys() const;
     QPlatformIntegration *create(const QString&, const QStringList&);

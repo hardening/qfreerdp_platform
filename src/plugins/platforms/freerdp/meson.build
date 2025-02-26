@@ -48,6 +48,7 @@ private_dirs = [
 ]
 
 moc_files = qt_mod.compile_moc(
+    extra_args: qt_defines,
     headers : moc_headers,
     include_directories: [private_dirs],
     dependencies: [qt_deps]

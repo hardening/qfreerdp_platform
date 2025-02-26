@@ -6,6 +6,9 @@ project('qfreerdp', 'cpp',
 
 cxx = meson.get_compiler('cpp')
 qt_defines = []
+if get_option('masquerade_xcb')
+  qt_defines += ['-DQFREERDP_MASQUERADE_XCB']
+endif
 
 qt_ver = get_option('qt_version')
 
