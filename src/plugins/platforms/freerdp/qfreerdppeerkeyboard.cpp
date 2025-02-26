@@ -230,20 +230,27 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
 
   Qt::Key qtKey;
   if (mPlatformConfig->qtwebengine_compat)
-    qtKey =
-        xkbKeycodeToUsLayoutQtKey(xkbKeycode);
+    qtKey = xkbKeycodeToUsLayoutQtKey(xkbKeycode);
   else
     qtKey = xkbKeysymToQtKey(xkbKeysym, qtModifiers, text);
 
+  xkb_mod_mask_t xkbMods = xkb_state_serialize_mods(mXkbState, XKB_STATE_MODS_EFFECTIVE);
+  // To emulate Qt's xcb behavior, nativeModifiers should be xcb_key_*_event_t->state.
+  // According to https://www.x.org/releases/current/doc/kbproto/xkbproto.html#Computing_A_State_Field_from_an_XKB_State
+  // we only need the least significant byte from xkb_mod_mask_t.
+  // NOTE: until https://bugreports.qt.io/browse/QTBUG-134107 is fixed, NumLock
+  // state still will not be registered by Qt WebEngine.
+  quint32 nativeModifiers = xkbMods & 0xff;
+
   // Uncomment for a keylogger :P
   // qDebug("%s: vkCode=0x%x xkb_keycode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x "
-  //        "modifiers=0x%x text=%s, isDown=%x",
+  //        "modifiers=0x%x xmods=0x%x text=%s, isDown=%x",
   //        __func__, vk_code, xkbKeycode, flags, xkbKeysym, qtKey,
-  //        (int)qtModifiers, text.toUtf8().constData(), isDown);
+  //        (int)qtModifiers, nativeModifiers, text.toUtf8().constData(), isDown);
 
   // send key
   sendKeyEvent(focusWindow->window(), ++mKeyCounter, eventType, qtKey,
-               qtModifiers, xkbKeycode, xkbKeysym, 0, text);
+               qtModifiers, xkbKeycode, xkbKeysym, nativeModifiers, text);
 
 #endif
 }
@@ -352,17 +359,13 @@ void QFreeRdpPeerKeyboard::updateModifiersState(bool capsLock, bool numLock,
   if (mXkbState == NULL)
     return;
 
-  uint32_t mods_depressed, mods_latched, mods_locked, group;
+  uint32_t mods_depressed, mods_latched, mods_locked, locked_group;
   uint32_t numMask, capsMask, scrollMask;
 
-  mods_depressed = xkb_state_serialize_mods(
-      mXkbState, xkb_state_component(XKB_STATE_DEPRESSED));
-  mods_latched = xkb_state_serialize_mods(
-      mXkbState, xkb_state_component(XKB_STATE_LATCHED));
-  mods_locked = xkb_state_serialize_mods(mXkbState,
-                                         xkb_state_component(XKB_STATE_LOCKED));
-  group = xkb_state_serialize_group(mXkbState,
-                                    xkb_state_component(XKB_STATE_EFFECTIVE));
+  mods_depressed = xkb_state_serialize_mods(mXkbState, XKB_STATE_MODS_DEPRESSED);
+  mods_latched = xkb_state_serialize_mods(mXkbState, XKB_STATE_MODS_LATCHED);
+  mods_locked = xkb_state_serialize_mods(mXkbState, XKB_STATE_MODS_LOCKED);
+  locked_group = xkb_state_serialize_layout(mXkbState, XKB_STATE_LAYOUT_LOCKED);
 
   numMask = (1 << mXkbModIndices[MOD_NUM]);
   capsMask = (1 << mXkbModIndices[MOD_CAPS]);
@@ -378,7 +381,7 @@ void QFreeRdpPeerKeyboard::updateModifiersState(bool capsLock, bool numLock,
   // usecase here might be special enough to be warranted, but this needs
   // further study
   xkb_state_update_mask(mXkbState, mods_depressed, mods_latched, mods_locked, 0,
-                        0, group);
+                        0, locked_group);
 }
 
 // This function checks both for active XKB modifiers, but also consumed
