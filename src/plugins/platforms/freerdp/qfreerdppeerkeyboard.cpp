@@ -197,13 +197,12 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
     text = xkbKeysymToUnicode(xkbKeysym);
     break;
     ;
-  case XKB_COMPOSE_CANCELLED: // sequence has no associated event
+  case XKB_COMPOSE_CANCELLED:
     xkb_compose_state_reset(mXkbComposeState);
-    /* eat this event */
-    return;
   case XKB_COMPOSE_COMPOSING: // waiting for next key
-    /* eat this event */
-    return;
+    // No text output, but still send the Qt::Key_Dead_* QKeyEvent
+    text = "";
+    break;
 
   case XKB_COMPOSE_COMPOSED:
     char buf[32];
