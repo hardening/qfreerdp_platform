@@ -208,7 +208,6 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
     char buf[32];
     xkb_compose_state_get_utf8(mXkbComposeState, buf, sizeof(buf));
     text = QString::fromUtf8(buf);
-    qDebug() << "composed " << text;
 
     xkb_compose_state_reset(mXkbComposeState);
   }
@@ -243,9 +242,10 @@ void QFreeRdpPeerKeyboard::handleRdpScancode(uint8_t scancode, uint16_t flags,
 
   // Uncomment for a keylogger :P
   // qDebug("%s: vkCode=0x%x xkb_keycode=0x%x flags=0x%x xsym=0x%x qtsym=0x%x "
-  //        "modifiers=0x%x xmods=0x%x text=%s, isDown=%x",
+  //        "modifiers=0x%x xmods=0x%x text=%s, isDown=%x, composed=%u",
   //        __func__, vk_code, xkbKeycode, flags, xkbKeysym, qtKey,
-  //        (int)qtModifiers, nativeModifiers, text.toUtf8().constData(), isDown);
+  //        (int)qtModifiers, nativeModifiers, text.toUtf8().constData(),
+  //        isDown, status == XKB_COMPOSE_COMPOSED);
 
   // send key
   sendKeyEvent(focusWindow->window(), ++mKeyCounter, eventType, qtKey,
