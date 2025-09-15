@@ -460,16 +460,22 @@ void initCustomKeyboard(freerdp_peer* client, struct xkb_rule_names *xkbRuleName
 
 	// Using our custom rules files (xkb/rules/qfreerdp) to make the custom
 	// type needed by our layouts accessible.
-	xkbRuleNames->rules = "qfreerdp";
+	struct {
+		const char *orig;
+		const char *newOne;
+	} customLayouts[] = {
+		{ "fr", RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT },
+		{ "latam", RUBYCAT_DEFAULT_WINDOWS_LATAM_LAYOUT },
+		{ "gb", RUBYCAT_DEFAULT_WINDOWS_GB_LAYOUT },
+		{ "be", RUBYCAT_DEFAULT_WINDOWS_BE_LAYOUT },
+	};
 
-	if (xkbRuleNames->layout == QString("fr")) {
-		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_FR_LAYOUT;
-	} else if (xkbRuleNames->layout == QString("latam")) {
-		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_LATAM_LAYOUT;
-	} else if (xkbRuleNames->layout == QString("gb")) {
-		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_GB_LAYOUT;
-	} else if (xkbRuleNames->layout == QString("be")) {
-		xkbRuleNames->layout = RUBYCAT_DEFAULT_WINDOWS_BE_LAYOUT;
+	for (size_t i = 0; i < ARRAYSIZE(customLayouts); i++) {
+		if (strcmp(xkbRuleNames->layout, customLayouts[i].orig) == 0) {
+			xkbRuleNames->layout = customLayouts[i].newOne;
+			xkbRuleNames->rules = "qfreerdp";
+			break;
+		}
 	}
 }
 
@@ -601,7 +607,7 @@ BOOL QFreeRdpPeer::xf_input_keyboard_event(rdpInput* input, UINT16 flags, UINT8 
 	if(flags & KBD_FLAGS_EXTENDED)
 		virtualScanCode |= KBDEXT;
 
-	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(virtualScanCode, settings->KeyboardSubType);
+	uint32_t vk_code = GetVirtualKeyCodeFromVirtualScanCode(virtualScanCode, settings->KeyboardType);
 	rdpPeer->handleVirtualKeycode(flags, vk_code);
 	return TRUE;
 }
@@ -820,8 +826,7 @@ BOOL QFreeRdpPeer::xf_peer_post_connect(freerdp_peer* client) {
 				settings->KeyboardLayout, DEFAULT_KBD_LANG);
 		xkbRuleNames.layout = DEFAULT_KBD_LANG;
 	} else {
-		qWarning("settings->KeyboardLayout %s",
-				xkbRuleNames.layout);
+		qWarning("settings->KeyboardLayout %s", xkbRuleNames.layout);
 	}
 
 	initCustomKeyboard(client, &xkbRuleNames);
