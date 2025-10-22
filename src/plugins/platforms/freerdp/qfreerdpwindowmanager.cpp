@@ -225,7 +225,7 @@ QFreeRdpWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 
 void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 	if (w != mFocusWindow) {
-#if QT_VERSION < 0x060700
+#if QT_VERSION < QT_VERSION_CHECK(6, 7, 0)
 		QWindowSystemInterface::handleWindowActivated(w->window());
 #else
 		QWindowSystemInterface::handleFocusWindowChanged(w->window());
