@@ -130,7 +130,7 @@ void QFreeRdpWindow::setVisible(bool visible) {
 			QWindowSystemInterface::handleGeometryChange(window(), geometry());
 			mSentInitialResize = true;
 		}
-#if QT_VERSION < 0x060700
+#if QT_VERSION < QT_VERSION_CHECK(6, 7, 0)
 		QWindowSystemInterface::handleWindowActivated(window(), Qt::ActiveWindowFocusReason);
 #else
 		QWindowSystemInterface::handleFocusWindowChanged(window(), Qt::ActiveWindowFocusReason);
