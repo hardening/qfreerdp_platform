@@ -21,7 +21,7 @@
  */
 
 #include <QtGlobal>
-#if QT_VERSION < 0x060000
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 	#include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
 	#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
 	#include <QtThemeSupport/private/qgenericunixthemes_p.h>
@@ -243,7 +243,7 @@ QPlatformBackingStore *QFreeRdpPlatform::createPlatformBackingStore(QWindow *win
     return new QFreeRdpBackingStore(window, const_cast<QFreeRdpPlatform*>(this));
 }
 
-#if QT_VERSION < 0x050200
+#if QT_VERSION < QT_VERSION_CHECK(5, 2, 0)
 QAbstractEventDispatcher *QFreeRdpPlatform::guiThreadEventDispatcher() const {
     return mEventDispatcher;
 }
@@ -270,7 +270,7 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 	switch (cap) {
 	case ThreadedPixmaps:
 		return true;
-#if QT_VERSION >= 0x060100
+#if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
 	case RhiBasedRendering:
 		return false;
 #endif
