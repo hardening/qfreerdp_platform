@@ -124,7 +124,7 @@ public:
     QPlatformClipboard *clipboard() const override;
     void initialize() override;
 
-#if QT_VERSION < 0x050200
+#if QT_VERSION < QT_VERSION_CHECK(5, 2, 0)
     virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
 #else
     QAbstractEventDispatcher *createEventDispatcher() const override;
