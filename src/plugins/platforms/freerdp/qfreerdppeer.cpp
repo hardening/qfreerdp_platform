@@ -208,7 +208,8 @@ BOOL QFreeRdpPeer::xf_input_synchronize_event(rdpInput* input, UINT32 flags)
 	QFreeRdpPeer *rdpPeer = peerCtx->rdpPeer;
 
 	rdpPeer->sendFullRefresh(client->context->settings);
-	rdpPeer->updateModifiersState(
+
+	rdpPeer->mKeyboard.updateModifiersState(
 			flags & KBD_SYNC_CAPS_LOCK,
 			flags & KBD_SYNC_NUM_LOCK,
 			flags & KBD_SYNC_SCROLL_LOCK,
