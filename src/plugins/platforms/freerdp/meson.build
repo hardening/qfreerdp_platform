@@ -48,7 +48,6 @@ private_dirs = [
 ]
 
 moc_files = qt_mod.compile_moc(
-    extra_args: qt_defines,
     headers : moc_headers,
     include_directories: [private_dirs],
     dependencies: [qt_deps]
@@ -67,7 +66,7 @@ endif
 message('Plugin will be installed to @0@'.format(target_install_dir))
 
 qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
-    cpp_args: qt_defines + ['-DFREERDP_SETTINGS_INTERNAL_USE'],
+    cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE'],
     include_directories: ['../../..', private_dirs],
     dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps],
     link_with: libwmwidgets,
