@@ -83,6 +83,7 @@ struct QFreeRdpPlatformConfig {
 	int fps;
 	bool clipboard_enabled;
 	bool egfx_enabled;
+	bool qtwebengine_compat;
 	char *secrets_file;
 
 	QSize screenSz;
@@ -107,7 +108,7 @@ public:
 	/**
 	 * @param dispatcher
 	 */
-	QFreeRdpPlatform(const QStringList& paramList);
+	QFreeRdpPlatform(const QString& system, const QStringList& paramList);
 
 	virtual ~QFreeRdpPlatform();
 
@@ -195,6 +196,7 @@ protected:
 	bool mResourcesLoaded;
 	QMap<IconResourceType, IconResource*> mResources;
 	QList<QFreeRdpPeer *> mPeers;
+	QString mPlatformName;
 };
 QT_END_NAMESPACE
 
