@@ -108,7 +108,7 @@ public:
 	/**
 	 * @param dispatcher
 	 */
-	QFreeRdpPlatform(const QStringList& paramList);
+	QFreeRdpPlatform(const QString& system, const QStringList& paramList);
 
 	virtual ~QFreeRdpPlatform();
 
@@ -196,6 +196,7 @@ protected:
 	bool mResourcesLoaded;
 	QMap<IconResourceType, IconResource*> mResources;
 	QList<QFreeRdpPeer *> mPeers;
+	QString mPlatformName;
 };
 QT_END_NAMESPACE
 

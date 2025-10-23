@@ -26,19 +26,12 @@
 
 QT_BEGIN_NAMESPACE
 
-QStringList QFreeRdpIntegrationPlugin::keys() const
-{
-    QStringList list;
-    list << QFREERDP_PLATFORM_NAME;
-    return list;
-}
-
 QPlatformIntegration *QFreeRdpIntegrationPlugin::create(const QString& system, const QStringList& paramList)
 {
-    if (system.toLower() == QFREERDP_PLATFORM_NAME)
-        return new QFreeRdpPlatform(paramList);
+    if (system.toLower().startsWith("freerdp"))
+        return new QFreeRdpPlatform(system, paramList);
 
-    return 0;
+    return nullptr;
 }
 
 QT_END_NAMESPACE

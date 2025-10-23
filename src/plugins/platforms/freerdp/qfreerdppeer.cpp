@@ -120,8 +120,6 @@ static void rdp_peer_context_free(freerdp_peer* client, RdpPeerContext* context)
 #endif
 }
 
-// static QStringList MODIFIERS = QStringList() << "Shift" << "Control" << "Alt" << "ISO_Level3" << "Super" << "Mod1" << "Mod4";
-
 QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mPlatform(platform),
 		mClient(client),
@@ -258,7 +256,7 @@ BOOL QFreeRdpPeer::xf_refresh_rect(rdpContext *context, BYTE count, const RECTAN
 	}
 
 	// Do not try to reduce the size of the update using the compositor's
-	// cache. We got got asked for a certain size and we're going to send all
+	// cache. We got asked for a certain size and we're going to send all
 	// of it.
 	rdpPeer->repaint(refreshRegion, false);
 
