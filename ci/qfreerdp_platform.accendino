@@ -1,0 +1,28 @@
+# -*- coding: utf-8 -*-
+
+#
+#  Copyright (C) 2025 David Fort <contact@hardening-consulting.com>
+#
+#    Detecting or building qfreerdp_platform
+#
+include('freerdp')
+
+for version in (5, 6,):
+    if version == 5:
+        debQtDeps = ['qtbase5-private-dev', 'qttools5-dev-tools']
+    elif version == 6:
+        debQtDeps = ['qt6-base-private-dev', 'qt6-tools-dev-tools']
+
+    qfreerdpPkgs = {
+        UBUNTU_LIKE: ['libxkbcommon-dev', 'libglib2.0-dev', 'libxrender-dev', 'libudev-dev', 'libfontconfig1-dev', 'libxcursor-dev'] + debQtDeps,
+    }
+
+    ARTIFACTS.append(
+        MesonBuildArtifact(f'qfreerdp_platform-qt{version}', ['freerdp3'],
+            LocalSource('.', do_symlink=True),
+            pkgs=qfreerdpPkgs,
+            mesonOpts=[f'-Dqt_version=qt{version}', '-Dglobal_install=false'],
+            provides=['qfreerdp_platform'],
+            toolchainArtifacts='c++'
+        )
+    )
