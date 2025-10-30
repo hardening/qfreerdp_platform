@@ -20,23 +20,18 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "qfreerdpplatform.h"
+
 #include "main.h"
 
 QT_BEGIN_NAMESPACE
 
-QStringList QFreeRdpIntegrationPlugin::keys() const
-{
-    QStringList list;
-    list << "freerdp";
-    return list;
-}
-
 QPlatformIntegration *QFreeRdpIntegrationPlugin::create(const QString& system, const QStringList& paramList)
 {
-    if (system.toLower() == "freerdp")
-        return new QFreeRdpPlatform(paramList);
+    if (system.toLower().startsWith("freerdp"))
+        return new QFreeRdpPlatform(system, paramList);
 
-    return 0;
+    return nullptr;
 }
 
 QT_END_NAMESPACE

@@ -55,7 +55,7 @@ static bool isDecorableWindow(QWindow *window) {
 	switch(window->type()) {
 	case Qt::Dialog:
 	case Qt::Window:
-		return true;
+		return !(window->flags() & Qt::FramelessWindowHint);
 	default:
 		return false;
 	}
@@ -224,8 +224,13 @@ QFreeRdpWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 }
 
 void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
-	if (w != mFocusWindow)
+	if (w != mFocusWindow) {
+#if QT_VERSION < QT_VERSION_CHECK(6, 7, 0)
 		QWindowSystemInterface::handleWindowActivated(w->window());
+#else
+		QWindowSystemInterface::handleFocusWindowChanged(w->window());
+#endif // QT_VERSION
+	}
 
 	mFocusWindow = w;
 }

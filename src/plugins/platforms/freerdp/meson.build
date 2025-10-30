@@ -10,6 +10,7 @@ sources = [
     'qfreerdpwindow.cpp',
     'qfreerdppeer.cpp',
     'qfreerdppeerclipboard.cpp',
+    'qfreerdppeerkeyboard.cpp',
     'qfreerdpwindowmanager.cpp',
     'qfreerdpwmwidgets.cpp',
     'xcursors/xcursor.cpp',
@@ -35,6 +36,7 @@ moc_headers = [
     'qfreerdpbackingstore.h',
     'qfreerdppeer.h',
     'qfreerdppeerclipboard.h',
+    'qfreerdppeerkeyboard.h',
     'qfreerdpwindowmanager.h',
     'qfreerdpwmwidgets.h',
 ]
@@ -64,7 +66,7 @@ endif
 message('Plugin will be installed to @0@'.format(target_install_dir))
 
 qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
-    cpp_args: qt_defines + ['-DFREERDP_SETTINGS_INTERNAL_USE'],
+    cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE'],
     include_directories: ['../../..', private_dirs],
     dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps],
     link_with: libwmwidgets,
