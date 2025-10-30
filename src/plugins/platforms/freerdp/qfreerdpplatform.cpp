@@ -174,7 +174,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 			} else if (mode == "optimize") {
 				displayMode = DisplayMode::OPTIMIZE;
 			} else {
-				qWarning() << "invalid display mode" << mode;
+				displayMode = DisplayMode::AUTODETECT;
+				qWarning() << "invalid display mode" << mode << ", falling back to autodetect";
 			}
 		} else if(param == "qtwebengineKbdCompat") {
 			qDebug("Enabling qtWebEngine keyboard compatibility mode");
