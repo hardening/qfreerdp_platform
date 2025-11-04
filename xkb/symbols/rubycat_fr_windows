@@ -60,10 +60,6 @@ xkb_symbols "windows" {
     key <AB09>  {[           colon,           slash,            division  ]};
     key <AB10>  {[          exclam,         section,          exclamdown  ]};
 
-    // French uses a comma as decimal separator, but keyboards are labeled with a period
-    // Will take effect when KP_Decimal is mapped to the locale decimal separator
-    key <KPDL>  { [       KP_Delete,      KP_Decimal,           KP_Delete,           KP_Decimal ] };
-
     // Enable AltGr
     include "level3(ralt_switch)"
 };

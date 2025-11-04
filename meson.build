@@ -5,7 +5,6 @@ project('qfreerdp', 'cpp',
                       'buildtype=debugoptimized' ])
 
 cxx = meson.get_compiler('cpp')
-qt_defines = []
 
 qt_ver = get_option('qt_version')
 
