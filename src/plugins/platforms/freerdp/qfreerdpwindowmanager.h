@@ -42,6 +42,8 @@ class QFreeRdpWindowManager : public QObject {
 public:
 	QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps);
 
+	virtual ~QFreeRdpWindowManager();
+
 	void initialize();
 
 	void addWindow(QFreeRdpWindow *window);

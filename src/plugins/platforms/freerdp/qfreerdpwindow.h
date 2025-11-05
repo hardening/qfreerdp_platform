@@ -43,7 +43,7 @@ class QFreeRdpWindow : public QPlatformWindow
 
 public:
     QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform);
-    ~QFreeRdpWindow();
+    virtual ~QFreeRdpWindow();
 
     void setBackingStore(QFreeRdpBackingStore *b);
 
@@ -75,7 +75,6 @@ public:
 protected:
     QFreeRdpPlatform *mPlatform;
     QFreeRdpBackingStore *mBackingStore;
-    QPlatformScreen *mScreen;
     WId mWinId;
     bool mVisible;
     bool mSentInitialResize;

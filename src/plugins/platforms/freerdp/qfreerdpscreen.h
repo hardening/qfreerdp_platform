@@ -39,7 +39,7 @@ class QFreeRdpScreen : public QObject, public QPlatformScreen
     Q_OBJECT
 public:
     QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height);
-    ~QFreeRdpScreen();
+    virtual ~QFreeRdpScreen();
 
     QRect geometry() const override;
     int depth() const override;
@@ -55,7 +55,6 @@ protected:
     QRect mGeometry;
     QFreeRdpPlatform *mPlatform;
     QImage *mScreenBits;
-    QFreeRdpCursor *mCursor;
 };
 
 QT_END_NAMESPACE

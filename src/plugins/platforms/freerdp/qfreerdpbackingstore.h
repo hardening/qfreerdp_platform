@@ -39,7 +39,7 @@ class QFreeRdpBackingStore : public QObject, public QPlatformBackingStore
 public:
     QFreeRdpBackingStore(QWindow *window, QFreeRdpPlatform *platform);
 
-    ~QFreeRdpBackingStore();
+    virtual ~QFreeRdpBackingStore();
 
     QPaintDevice *paintDevice() override;
 

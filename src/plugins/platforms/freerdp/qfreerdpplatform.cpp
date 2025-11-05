@@ -52,6 +52,8 @@
 #include "qfreerdpclipboard.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwindowmanager.h"
+#include "xcursors/qfreerdpxcursor.h"
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -201,6 +203,7 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& par
 , mClipboard(new QFreeRdpClipboard())
 , mConfig(new QFreeRdpPlatformConfig(paramList))
 , mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
+, mCursor(new QFreeRdpCursor(this))
 , mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
 , mResourcesLoaded(false)
@@ -228,20 +231,25 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	}
 
 	delete mListener;
-	delete mWindowManager;
-	delete mScreen;
+	delete mCursor;
 	delete mConfig;
 	delete mClipboard;
 	delete mNativeInterface;
 	delete mFontDb;
+	delete mWindowManager;
+	delete mScreen;
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
-	qDebug() << "QFreeRdpPlatform::createPlatformWindow(modality=" << window->modality()
+	qDebug() << "QFreeRdpPlatform::createPlatformWindow(window=" << (void*)window << " modality=" << window->modality()
 			<< " flags=" << window->flags() << ")";
 
 	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
 	mWindowManager->addWindow(ret);
+	auto it = mbackingStores.find(window);
+	if (it != mbackingStores.end())
+		ret->setBackingStore(*it);
+
 	return ret;
 }
 
@@ -360,6 +368,8 @@ void QFreeRdpPlatform::unregisterPeer(QFreeRdpPeer *peer) {
 }
 
 void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *back) {
+	mbackingStores.insert(w, back);
+
 	foreach(QFreeRdpWindow *rdpWindow, *mWindowManager->getAllWindows()) {
 		if(rdpWindow->window() == w) {
 			rdpWindow->setBackingStore(back);
@@ -367,6 +377,15 @@ void QFreeRdpPlatform::registerBackingStore(QWindow *w, QFreeRdpBackingStore *ba
 		}
 	}
 	qWarning("did not find window %p in window manager to register its backing store", (void*)w);
+}
+
+void QFreeRdpPlatform::dropBackingStore(QFreeRdpBackingStore *back)
+{
+	for (auto it = mbackingStores.begin(); it != mbackingStores.end(); ++it)
+		if (it.value() == back) {
+			mbackingStores.erase(it);
+			break;
+		}
 }
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {

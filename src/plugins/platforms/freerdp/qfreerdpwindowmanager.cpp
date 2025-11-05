@@ -47,6 +47,9 @@ QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps
 	connect(&mFrameTimer, SIGNAL(timeout()), this, SLOT(onGenerateFrame()));
 }
 
+QFreeRdpWindowManager::~QFreeRdpWindowManager() {
+}
+
 void QFreeRdpWindowManager::initialize() {
 	mFrameTimer.start((int)(1000 / mFps));
 }
@@ -161,7 +164,7 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 	//qDebug() << "dirtyRegion=" << dirtyRegion;
 
 	foreach(QFreeRdpWindow *window, mWindows) {
-		if(!window->isVisible())
+		if(!window->isVisible() || !window->windowContent())
 			continue;
 
 		QRect windowRect = window->geometry();
