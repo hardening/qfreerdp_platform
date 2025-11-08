@@ -2,7 +2,7 @@
 
 ## Application details
 
-This is a Qt5 platform plugin to export application through RDP without modifying
+This is a Qt5/Qt6 platform plugin to export application through RDP without modifying
 the original code.
 
 ## Requirements

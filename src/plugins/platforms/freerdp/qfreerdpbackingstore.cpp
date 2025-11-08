@@ -38,6 +38,7 @@ QFreeRdpBackingStore::QFreeRdpBackingStore(QWindow *window, QFreeRdpPlatform *pl
 }
 
 QFreeRdpBackingStore::~QFreeRdpBackingStore() {
+	mPlatform->dropBackingStore(this);
 }
 
 QPaintDevice *QFreeRdpBackingStore::paintDevice() {
@@ -46,7 +47,6 @@ QPaintDevice *QFreeRdpBackingStore::paintDevice() {
 
 void QFreeRdpBackingStore::flush(QWindow *window, const QRegion &region, const QPoint &offset)
 {
-    Q_UNUSED(window);
     Q_UNUSED(offset);
 
     mPlatform->mWindowManager->pushDirtyArea(

@@ -39,14 +39,13 @@ static volatile int globalWinId = 1;
 QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
 	QPlatformWindow(window),
     mPlatform(platform),
-    mBackingStore(0),
+    mBackingStore(nullptr),
     mWinId( WId(globalWinId++) ),
     mVisible(false),
     mSentInitialResize(false),
 	mDecorate(false),
 	mDecorations(nullptr)
 {
-	mScreen = QPlatformScreen::platformScreenForWindow(window);
 	qDebug() << "QFreeRdpWindow ctor(" << mWinId << ", type=" << window->type() << ")";
 
 	// adapt window position
@@ -143,7 +142,7 @@ void QFreeRdpWindow::setVisible(bool visible) {
 void QFreeRdpWindow::setGeometry(const QRect &rect) {
 	qDebug("QFreeRdpWindow::%s(%llu, %d,%d - %dx%d)", __func__, mWinId, rect.left(),
 			rect.top(), rect.width(), rect.height());
-	QRegion updateRegion(geometry());
+	QRegion updateRegion(outerWindowGeometry());
 
 	QPlatformWindow::setGeometry(rect);
 	updateRegion += outerWindowGeometry();
@@ -167,13 +166,12 @@ void QFreeRdpWindow::propagateSizeHints() {
 }
 
 
-
 QMargins QFreeRdpWindow::frameMargins() const
 {
 	if (mDecorate)
 		return QMargins(BORDERS_SIZE, TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE);
-	else
-		return QMargins();
+
+	return QMargins();
 }
 
 void QFreeRdpWindow::setWindowTitle(const QString &title)
@@ -202,16 +200,16 @@ QRegion QFreeRdpWindow::decorationGeometry() const {
 
 const QImage *QFreeRdpWindow::windowContent() {
 	if (!mBackingStore) {
-		qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
-		return 0;
+		qWarning("QFreeRdpWindow::%s: window %p(%lld) has no backing store", __func__, (void*)this, mWinId);
+		return nullptr;
 	}
 	return (const QImage*) mBackingStore->paintDevice();
 }
 
 void QFreeRdpWindow::center() {
-
-	QRect screenGeometry = mScreen->geometry();
-	QRect windowGeometry = this->geometry();
+	QPlatformScreen *screen = QPlatformScreen::platformScreenForWindow(window());
+	QRect screenGeometry = screen->geometry();
+	QRect windowGeometry = geometry();
 
 	int x = (screenGeometry.width() - windowGeometry.width()) / 2;
 	int y = (screenGeometry.height() - windowGeometry.height()) / 2;

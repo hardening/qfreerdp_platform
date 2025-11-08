@@ -43,6 +43,7 @@ class QFreeRdpWindow;
 class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 class QFreeRdpClipboard;
+class QFreeRdpCursor;
 
 enum DisplayMode {
 	UNKNOWN = 0,
@@ -92,9 +93,7 @@ struct QFreeRdpPlatformConfig {
 };
 
 
-/**
- * @brief
- */
+/** @brief FreeRDP based platform */
 class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpScreen;
 	friend class QFreeRdpCursor;
@@ -110,6 +109,7 @@ public:
 	 */
 	QFreeRdpPlatform(const QString& system, const QStringList& paramList);
 
+	/** dtor */
 	virtual ~QFreeRdpPlatform();
 
     /** @overload QPlatformIntegration
@@ -136,17 +136,13 @@ public:
 	/** @return the main screen */
 	QFreeRdpScreen *getScreen() { return mScreen; }
 
-	/** @return */
+	/** @return clipboard */
 	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
 
-	/**
-	 * @return listen address
-	 */
+	/** @return listen address */
 	char* getListenAddress() const;
 
-	/**
-	 * @return listen port
-	 */
+	/** @return listen port */
 	int getListenPort() const;
 
 	/** registers a RDP peer
@@ -165,6 +161,7 @@ public:
 	void repaint(const QRegion &region);
 
 	void registerBackingStore(QWindow *w, QFreeRdpBackingStore *back);
+	void dropBackingStore(QFreeRdpBackingStore *back);
 
 	/** @return the event dispatcher */
 	QAbstractEventDispatcher *getDispatcher() { return mEventDispatcher; }
@@ -191,10 +188,13 @@ protected:
 
     QFreeRdpPlatformConfig *mConfig;
     QFreeRdpScreen *mScreen;
+    QFreeRdpCursor *mCursor;
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;
 	bool mResourcesLoaded;
 	QMap<IconResourceType, IconResource*> mResources;
+	typedef QMap<QWindow *, QFreeRdpBackingStore *> BackingStoreMap;
+	BackingStoreMap mbackingStores;
 	QList<QFreeRdpPeer *> mPeers;
 	QString mPlatformName;
 };
