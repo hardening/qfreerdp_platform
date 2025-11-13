@@ -194,6 +194,10 @@ WmWindowDecoration *QFreeRdpWindow::decorations() const {
 	return mDecorations;
 }
 
+QFreeRdpWindowManager *QFreeRdpWindow::windowManager() const {
+	return mPlatform->mWindowManager;
+}
+
 QRegion QFreeRdpWindow::decorationGeometry() const {
 	return mDecorations->geometryRegion();
 }
@@ -203,7 +207,7 @@ const QImage *QFreeRdpWindow::windowContent() {
 		qWarning("QFreeRdpWindow::%s: window %p(%lld) has no backing store", __func__, (void*)this, mWinId);
 		return nullptr;
 	}
-	return (const QImage*) mBackingStore->paintDevice();
+	return (const QImage*)mBackingStore->paintDevice();
 }
 
 void QFreeRdpWindow::center() {

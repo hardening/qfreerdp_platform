@@ -33,6 +33,7 @@ class QFreeRdpPlatform;
 class QFreeRdpBackingStore;
 class WmWindowDecoration;
 class QImage;
+class QFreeRdpWindowManager;
 
 /**
  * @brief a window
@@ -65,6 +66,7 @@ public:
     bool isVisible() const { return mVisible; }
 
     WmWindowDecoration *decorations() const;
+    QFreeRdpWindowManager *windowManager() const;
     QRegion decorationGeometry() const;
     void setDecorate(bool active);
 

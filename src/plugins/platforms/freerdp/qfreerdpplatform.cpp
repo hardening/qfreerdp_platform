@@ -515,3 +515,8 @@ const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
 const WmTheme& QFreeRdpPlatform::getTheme() {
 	return mConfig->theme;
 }
+
+QFreeRdpCursor *QFreeRdpPlatform::cursorHandler() const {
+	return mCursor;
+
+}

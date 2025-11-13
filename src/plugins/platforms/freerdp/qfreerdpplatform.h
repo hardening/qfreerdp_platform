@@ -175,6 +175,7 @@ public:
 
 	const IconResource *getIconResource(IconResourceType rtype);
 	const WmTheme& getTheme();
+	QFreeRdpCursor *cursorHandler() const;
 
 protected:
 	bool loadResources();
