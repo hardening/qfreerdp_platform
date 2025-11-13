@@ -26,6 +26,7 @@
 #include <QRect>
 #include <QRegion>
 #include <QTimer>
+#include <wmwidgets/wmwidget.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -69,10 +70,15 @@ public:
 	QFreeRdpWindow *getFocusWindow() const { return mFocusWindow; }
 
 	bool handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down);
+	bool handleWindowMove(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down);
+	bool handleWindowResize(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down);
 	bool handleWheelEvent(const QPoint &pos, int wheelDelta);
 
 	typedef QList<QFreeRdpWindow *> QFreeRdpWindowList;
     QFreeRdpWindowList const *getAllWindows() const { return &mWindows; }
+
+public slots:
+	void onStartDragging(WmWidget::DraggingType dragType, QFreeRdpWindow *window);
 
 protected slots:
 	void onGenerateFrame();
@@ -85,6 +91,9 @@ protected:
 	WmWidget *mEnteredWidget;
 	int mDecoratedWindows;
 	int mFps;
+	WmWidget::DraggingType mDraggingType;
+	QFreeRdpWindow *mDraggedWindow;
+	QPoint mLastMousePos;
 
 	QTimer mFrameTimer;
 	QRegion mDirtyRegion;

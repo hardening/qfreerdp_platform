@@ -76,7 +76,7 @@ void WmHContainer::handleMouse(const QPoint &pos, Qt::MouseButtons buttons) {
 			}
 
 			widget->handleMouse(localPos, buttons);
-			break;
+			return;
 		}
 	}
 }

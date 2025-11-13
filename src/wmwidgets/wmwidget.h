@@ -31,7 +31,7 @@ QT_BEGIN_NAMESPACE
 
 class QPainter;
 
-
+/** @brief window manager theme */
 struct WmTheme {
 	QColor frontColor;
 	QColor backColor;
@@ -42,6 +42,21 @@ struct WmTheme {
 /** @brief base class for window manager widgets */
 class WmWidget : public QObject {
 	Q_OBJECT
+public:
+	/** @brief type of dragging */
+	typedef enum {
+		DRAGGING_NONE,				/*!< no dragging in progress */
+		DRAGGING_MOVE,				/*!< moving a window */
+		DRAGGING_RESIZE_TOP, 		/*!< resizing dragging the top border of the window */
+		DRAGGING_RESIZE_TOP_LEFT, 	/*!< resizing dragging the top-left corner of window */
+		DRAGGING_RESIZE_TOP_RIGHT,	/*!< resizing dragging the top-right corner of window */
+		DRAGGING_RESIZE_BOTTOM,		/*!< resizing dragging the bottom border of the window */
+		DRAGGING_RESIZE_BOTTOM_LEFT,/*!< resizing dragging the bottom-left corner of window */
+		DRAGGING_RESIZE_BOTTOM_RIGHT,/*!< resizing dragging the bottom-right corner of window */
+		DRAGGING_RESIZE_LEFT,		/*!< resizing dragging the left border of the window */
+		DRAGGING_RESIZE_RIGHT,		/*!< resizing dragging the right border of the window */
+	} DraggingType;
+
 public:
 	WmWidget(const WmTheme& theme, WmWidget *parent = nullptr);
 	virtual ~WmWidget() = default;
@@ -71,6 +86,9 @@ public:
 	virtual void repaint(QPainter &painter, const QPoint &pos);
 	virtual void handleChildDirty(WmWidget* child, const QRegion &dirty);
 	/** @} */
+
+signals:
+	void startDrag(WmWidget::DraggingType draggingType);
 
 protected:
 	WmWidget *mParent;

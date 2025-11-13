@@ -59,6 +59,14 @@ WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &
 	resizeFromWindow(w);
 
 	connect(mCloseButton, SIGNAL(clicked()), this, SLOT(onCloseClicked()));
+	connect(mTitle, SIGNAL(startDrag(WmWidget::DraggingType )),
+			this, SLOT(onStartDragging(WmWidget::DraggingType))
+	);
+
+	QFreeRdpWindowManager *wm = freerdpW->windowManager();
+	connect(this, SIGNAL(startDrag(WmWidget::DraggingType, QFreeRdpWindow *)),
+			(QObject*)wm, SLOT(onStartDragging(WmWidget::DraggingType, QFreeRdpWindow *))
+	);
 }
 
 WmWindowDecoration::~WmWindowDecoration() {
@@ -83,6 +91,61 @@ void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 	mGeometryRegion = mWindow->outerWindowGeometry();
 	mGeometryRegion -= w->geometry();
 
+	mResizeRegions.clear();
+
+	/* top */
+	QRegion r( QRect(5, 0, mSize.width() - 5, 2) );
+	ResizeAction a;
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP;
+	mResizeRegions.push_back(a);
+
+	/* top-left */
+	r = QRegion(QRect(0, 0, 5, BORDERS_SIZE));
+	r += QRect(0, 0, BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP_LEFT;
+	mResizeRegions.push_back(a);
+
+	/* top-right */
+	r = QRegion(QRect(mSize.width()-5, 0, 5, BORDERS_SIZE));
+	r += QRect(mSize.width() - BORDERS_SIZE, 0, BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP_RIGHT;
+	mResizeRegions.push_back(a);
+
+	/* bottom */
+	r = QRegion( QRect(5, mSize.height() - BORDERS_SIZE, mSize.width() - 5, BORDERS_SIZE) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM;
+	mResizeRegions.push_back(a);
+
+	/* bottom-left */
+	r = QRegion( QRect(0, mSize.height() - BORDERS_SIZE, 5, BORDERS_SIZE) );
+	r += QRect(0, mSize.height() - 5, BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM_LEFT;
+	mResizeRegions.push_back(a);
+
+	/* bottom-right */
+	r = QRegion( QRect(mSize.width() - BORDERS_SIZE, mSize.height() - 5, BORDERS_SIZE, 5) );
+	r += QRect(mSize.width() - 5, mSize.height() - BORDERS_SIZE, 5, BORDERS_SIZE);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM_RIGHT;
+	mResizeRegions.push_back(a);
+
+	/* left */
+	r = QRegion( QRect(0, 5, BORDERS_SIZE, mSize.height() - 5) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_LEFT;
+	mResizeRegions.push_back(a);
+
+	/* right */
+	r = QRegion( QRect(mSize.width() - BORDERS_SIZE, 5, BORDERS_SIZE, mSize.height() - 5) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_RIGHT;
+	mResizeRegions.push_back(a);
+
 	handleResize();
 }
 
@@ -95,6 +158,14 @@ void WmWindowDecoration::handleResize() {
 }
 
 void WmWindowDecoration::handleMouse(const QPoint &pos, Qt::MouseButtons buttons) {
+	for(auto it = mResizeRegions.begin(); it != mResizeRegions.end(); it++)
+	{
+		if (it->r.contains(pos)) {
+			emit startDrag(it->action, mWindow);
+			break;
+		}
+	}
+
 	if (mTopContainer->localGeometry().contains(pos)) {
 		if (mEnteredWidget != mTopContainer) {
 			mEnteredWidget = mTopContainer;
@@ -142,6 +213,11 @@ void WmWindowDecoration::repaint(QPainter &painter, const QPoint &pos) {
 void WmWindowDecoration::handleChildDirty(WmWidget* child, const QRegion &dirty) {
 	mDirty = true;
 	mWindow->notifyDirty( dirty.translated(child->position()) );
+}
+
+void WmWindowDecoration::onStartDragging(WmWidget::DraggingType dragType)
+{
+	emit startDrag(dragType, mWindow);
 }
 
 void WmWindowDecoration::onCloseClicked() {

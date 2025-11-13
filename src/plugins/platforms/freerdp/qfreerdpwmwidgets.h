@@ -28,6 +28,7 @@
 #include <QFont>
 #include <QColor>
 #include <QPainter>
+#include <QMap>
 
 #include <wmwidgets/wmwidget.h>
 #include <wmwidgets/wmlabel.h>
@@ -60,7 +61,11 @@ public:
 	void repaint(QPainter &painter, const QPoint &pos) override;
 	void handleChildDirty(WmWidget* child, const QRegion &dirty) override;
 
+signals:
+	void startDrag(WmWidget::DraggingType dragType, QFreeRdpWindow *w);
+
 public slots:
+	void onStartDragging(WmWidget::DraggingType dragType);
 	void onCloseClicked();
 
 protected:
@@ -75,6 +80,13 @@ protected:
 	QRegion mGeometryRegion;
 	bool mDirty;
 	QImage *mContent;
+
+	typedef struct {
+		QRegion r;
+		WmWidget::DraggingType action;
+	} ResizeAction;
+	typedef QList<ResizeAction> ResizeRegions;
+	ResizeRegions mResizeRegions;
 };
 
 QT_END_NAMESPACE
