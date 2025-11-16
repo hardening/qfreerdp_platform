@@ -143,7 +143,7 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 void QFreeRdpPeer::dropSocketNotifier(QSocketNotifier *notifier) {
 	if(notifier) {
 		notifier->setEnabled(false);
-		disconnect(notifier, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+		disconnect(notifier, &QSocketNotifier::activated, this, &QFreeRdpPeer::incomingBytes);
 		delete notifier;
 	}
 }
@@ -601,14 +601,14 @@ bool QFreeRdpPeer::init() {
 	}
 
 	peerCtx->event = new QSocketNotifier(clientFd, QSocketNotifier::Read);
-	connect(peerCtx->event, SIGNAL(activated(int)), this, SLOT(incomingBytes(int)) );
+	connect(peerCtx->event, &QSocketNotifier::activated, this, &QFreeRdpPeer::incomingBytes);
 
 	HANDLE vcmHandle = WTSVirtualChannelManagerGetEventHandle(mVcm);
 	if (vcmHandle)
 	{
 		int vcmFd = GetEventFileDescriptor(vcmHandle);
 		peerCtx->channelEvent = new QSocketNotifier(vcmFd, QSocketNotifier::Read);
-		connect(peerCtx->channelEvent, SIGNAL(activated(int)), this, SLOT(channelTraffic(int)) );
+		connect(peerCtx->channelEvent, &QSocketNotifier::activated, this, &QFreeRdpPeer::channelTraffic);
 	}
 
 	return true;

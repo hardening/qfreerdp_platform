@@ -237,7 +237,7 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mNativeInterface;
 	delete mFontDb;
 	delete mWindowManager;
-	delete mScreen;
+	QWindowSystemInterface::handleScreenRemoved(mScreen->screen()->handle());
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
@@ -334,7 +334,7 @@ void QFreeRdpPlatform::initialize() {
 	// loader will overwrite our change.
 	if (mPlatformName.toLower() == "freerdp_xcb")
 		mPlatformName = "xcb";
-	QGuiApplicationPrivate::platform_name = &mPlatformName;
+	QGuiApplicationPrivate::platform_name = new QString(mPlatformName);
 	qDebug("Initializing qfreerdp platform, and setting platform_name to %s",
 			mPlatformName.toStdString().c_str());
 

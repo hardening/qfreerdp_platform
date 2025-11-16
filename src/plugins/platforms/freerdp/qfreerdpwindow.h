@@ -35,12 +35,14 @@ class WmWindowDecoration;
 class QImage;
 class QFreeRdpWindowManager;
 
+
 /**
  * @brief a window
  */
 class QFreeRdpWindow : public QPlatformWindow
 {
 	Q_DECLARE_PRIVATE(QPlatformWindow)
+	friend class WmWindowDecoration;
 
 public:
     QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform);

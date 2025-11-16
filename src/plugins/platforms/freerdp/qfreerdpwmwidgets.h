@@ -29,6 +29,7 @@
 #include <QColor>
 #include <QPainter>
 #include <QMap>
+#include <QCursor>
 
 #include <wmwidgets/wmwidget.h>
 #include <wmwidgets/wmlabel.h>
@@ -41,6 +42,10 @@ QT_BEGIN_NAMESPACE
 class QImage;
 class IconResource;
 class QFreeRdpWindow;
+
+#define WM_DECORATION_HEIGHT 30
+#define WM_BORDERS_SIZE 2
+
 
 /** @brief wmwidget that does window's decoration */
 class WmWindowDecoration : public WmWidget {
@@ -84,9 +89,11 @@ protected:
 	typedef struct {
 		QRegion r;
 		WmWidget::DraggingType action;
+		Qt::CursorShape cursor;
 	} ResizeAction;
 	typedef QList<ResizeAction> ResizeRegions;
 	ResizeRegions mResizeRegions;
+	Qt::CursorShape mLastCursor;
 };
 
 QT_END_NAMESPACE
