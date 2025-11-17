@@ -84,6 +84,9 @@ protected slots:
 	void onGenerateFrame();
 
 protected:
+	static bool isValidWindowGeometry(const QWindow *window, const QRect &newGeometry);
+
+protected:
 	QFreeRdpPlatform *mPlatform;
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mFocusWindow;

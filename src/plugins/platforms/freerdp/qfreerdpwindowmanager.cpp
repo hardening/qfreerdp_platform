@@ -241,7 +241,6 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 		raise(w);
 	}
 
-
 	mFocusWindow = w;
 }
 
@@ -250,7 +249,6 @@ void QFreeRdpWindowManager::onStartDragging(WmWidget::DraggingType dragType, QFr
 {
 	mDraggingType = dragType;
 	mDraggedWindow = window;
-
 
 	switch (dragType) {
 	case WmWidget::DRAGGING_NONE:
@@ -283,12 +281,31 @@ bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons
 	auto window = mDraggedWindow->window();
 	QPoint newPosition = window->position() + delta;
 
-	auto screenGeom = window->screen()->geometry();
-	/* enusure that the window is still accessible */
-	if (newPosition.y() > WM_DECORATION_HEIGHT && newPosition.y() < screenGeom.bottom() && newPosition.x() < screenGeom.right() - 5) {
+	if (isValidWindowGeometry(window, QRect(newPosition, window->size())))
 		window->setPosition(newPosition);
-	}
 	return true;
+}
+
+bool QFreeRdpWindowManager::isValidWindowGeometry(const QWindow *window, const QRect &newGeometry)
+{
+	QPoint newPosition = newGeometry.topLeft();
+	auto screenGeom = window->screen()->geometry();
+
+	if (!newGeometry.isValid())
+		return false;
+
+	/* ensure that the window is still accessible */
+	QSize newSize = newGeometry.size();
+	if (!(newPosition.x() + newSize.width() - 10 > 0 && newPosition.y() > WM_DECORATION_HEIGHT &&
+			newPosition.y() < screenGeom.bottom() && newPosition.x() < screenGeom.right() - 5))
+		return false;
+
+	QSize minimumSize(
+		5 * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
+		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
+	);
+
+	return newSize.width() >= minimumSize.width() && newSize.height() >= minimumSize.height();
 }
 
 bool QFreeRdpWindowManager::handleWindowResize(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
@@ -337,17 +354,8 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &pos, Qt::MouseButto
 		return true;
 	}
 
-	QSize minimumSize(
-		5 * 2 /* resize anchors */ + 20 /* minimum size for the title / close button / inner window */,
-		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
-	);
-
-	if (newGeometry.isValid()) {
-		QSize newSize = newGeometry.size();
-
-		if (newSize.width() >= minimumSize.width() && newSize.height() >= minimumSize.height())
-			window->setGeometry(newGeometry);
-	}
+	if (isValidWindowGeometry(window, newGeometry))
+		window->setGeometry(newGeometry);
 	return true;
 }
 
