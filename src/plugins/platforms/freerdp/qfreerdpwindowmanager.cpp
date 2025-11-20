@@ -25,6 +25,7 @@
 #include "qfreerdpscreen.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwmwidgets.h"
+#include "xcursors/qfreerdpxcursor.h"
 
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QRegion>
@@ -43,8 +44,10 @@ QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps
 , mEnteredWidget(0)
 , mDecoratedWindows(0)
 , mFps(fps)
+, mDraggingType(WmWidget::DRAGGING_NONE)
+, mDraggedWindow(nullptr)
 {
-	connect(&mFrameTimer, SIGNAL(timeout()), this, SLOT(onGenerateFrame()));
+	connect(&mFrameTimer, &QTimer::timeout, this, &QFreeRdpWindowManager::onGenerateFrame);
 }
 
 QFreeRdpWindowManager::~QFreeRdpWindowManager() {
@@ -73,9 +76,9 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 
 	QRegion dirtyRegion = window->outerWindowGeometry();
 
-	// mWinId 1 is our original page, where we don't want any decorations
+	// rootWindow(mWinId==1) is our original page, where we don't want any decorations
 	// Any other window is fair game.
-	if (window->winId() > 1 && isDecorableWindow(qwindow)) {
+	if (window->winId() != mPlatform->config()->rootWindow && isDecorableWindow(qwindow)) {
 		qDebug("WM activating windows decorations");
 		mDecoratedWindows++;
 		dirtyRegion = window->screen()->geometry();
@@ -208,6 +211,7 @@ void QFreeRdpWindowManager::repaint(const QRegion &region) {
 	mPlatform->repaint(dirtyRegion);
 }
 
+
 void QFreeRdpWindowManager::onGenerateFrame() {
 	if (!mDirtyRegion.isEmpty()) {
 		repaint(mDirtyRegion);
@@ -223,7 +227,7 @@ QFreeRdpWindow *QFreeRdpWindowManager::getWindowAt(const QPoint pos) const {
 		if(window->outerWindowGeometry().contains(pos))
 			return window;
 	}
-	return 0;
+	return nullptr;
 }
 
 void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
@@ -233,12 +237,146 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 #else
 		QWindowSystemInterface::handleFocusWindowChanged(w->window());
 #endif // QT_VERSION
+
+		if (w->winId() != mPlatform->config()->rootWindow)
+			raise(w);
 	}
 
 	mFocusWindow = w;
 }
 
+
+void QFreeRdpWindowManager::onStartDragging(WmWidget::DraggingType dragType, QFreeRdpWindow *window)
+{
+	mDraggingType = dragType;
+	mDraggedWindow = window;
+
+	switch (dragType) {
+	case WmWidget::DRAGGING_NONE:
+		return;
+	case WmWidget::DRAGGING_MOVE: {
+		QCursor newCursor(Qt::SizeAllCursor);
+		mPlatform->cursorHandler()->changeCursor(&newCursor, nullptr);
+		break;
+	}
+	default:
+		break;;
+	}
+}
+
+bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
+{
+	if (!(buttons & Qt::LeftButton)) {
+		qDebug() << "end of dragging";
+		mDraggingType = WmWidget::DRAGGING_NONE;
+		mDraggedWindow = nullptr;
+
+		QCursor moveCursor(Qt::ArrowCursor);
+		mPlatform->cursorHandler()->changeCursor(&moveCursor, nullptr);
+		return true;
+	}
+
+	QPoint delta = (pos - mLastMousePos);
+	mLastMousePos = pos;
+
+	auto window = mDraggedWindow->window();
+	QPoint newPosition = window->position() + delta;
+
+	if (isValidWindowGeometry(window, QRect(newPosition, window->size())))
+		window->setPosition(newPosition);
+	return true;
+}
+
+bool QFreeRdpWindowManager::isValidWindowGeometry(const QWindow *window, const QRect &newGeometry)
+{
+	QPoint newPosition = newGeometry.topLeft();
+	auto screenGeom = window->screen()->geometry();
+
+	if (!newGeometry.isValid())
+		return false;
+
+	/* ensure that the window is still accessible */
+	QSize newSize = newGeometry.size();
+	if (!(newPosition.x() + newSize.width() - 10 > 0 && newPosition.y() > WM_DECORATION_HEIGHT &&
+			newPosition.y() < screenGeom.bottom() && newPosition.x() < screenGeom.right() - 5))
+		return false;
+
+	QSize minimumSize(
+		5 * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
+		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
+	);
+
+	return newSize.width() >= minimumSize.width() && newSize.height() >= minimumSize.height();
+}
+
+bool QFreeRdpWindowManager::handleWindowResize(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
+{
+	if (!(buttons & Qt::LeftButton)) {
+		qDebug() << "end of resizing";
+		mDraggingType = WmWidget::DRAGGING_NONE;
+		mDraggedWindow = nullptr;
+
+		QCursor moveCursor(Qt::ArrowCursor);
+		mPlatform->cursorHandler()->changeCursor(&moveCursor, nullptr);
+		return true;
+	}
+
+	QPoint delta = (pos - mLastMousePos);
+	mLastMousePos = pos;
+
+	auto window = mDraggedWindow->window();
+	QRect newGeometry = window->geometry();
+	switch (mDraggingType) {
+	case WmWidget::DRAGGING_RESIZE_TOP:
+		newGeometry.adjust(0, delta.y(), 0, 0);
+		break;
+	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
+		newGeometry.adjust(delta.x(), delta.y(), 0, 0);
+		break;
+	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
+		newGeometry.adjust(0, delta.y(), delta.x(), 0);
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM:
+		newGeometry.adjust(0, 0, 0, delta.y());
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
+		newGeometry.adjust(delta.x(), 0, 0, delta.y());
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
+		newGeometry.adjust(0, 0, delta.x(), delta.y());
+		break;
+	case WmWidget::DRAGGING_RESIZE_LEFT:
+		newGeometry.adjust(delta.x(), 0, 0, 0);
+		break;
+	case WmWidget::DRAGGING_RESIZE_RIGHT:
+		newGeometry.adjust(0, 0, delta.x(), 0);
+		break;
+	default:
+		return true;
+	}
+
+	if (isValidWindowGeometry(window, newGeometry))
+		window->setGeometry(newGeometry);
+	return true;
+}
+
 bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down) {
+	switch(mDraggingType) {
+	case WmWidget::DRAGGING_MOVE:
+		return handleWindowMove(pos, buttons, button, down);
+	case WmWidget::DRAGGING_RESIZE_TOP:
+	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
+	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
+	case WmWidget::DRAGGING_RESIZE_BOTTOM:
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
+	case WmWidget::DRAGGING_RESIZE_LEFT:
+	case WmWidget::DRAGGING_RESIZE_RIGHT:
+		return handleWindowResize(pos, buttons, button, down);
+	case WmWidget::DRAGGING_NONE:
+		break;
+	}
+
 	QFreeRdpWindow *rdpWindow = getWindowAt(pos);
 	QWindow *window = nullptr;
 	WmWidget *targetWmWidget = nullptr;
@@ -282,16 +420,15 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 		mEnteredWidget = targetWmWidget;
 	}
 
-	if(button && down && rdpWindow)
-		setFocusWindow(rdpWindow);
+	if(button && down && rdpWindow) {
+		/* we don't want a background window to do anything if the current window is modal */
+		if (!mFocusWindow || !mFocusWindow->window()->isModal())
+			setFocusWindow(rdpWindow);
+	}
 
 	if (wmEvent) {
 		if (targetWmWidget) {
 			targetWmWidget->handleMouse(localPos, buttons);
-			/*if (targetWmWidget->isDirty()) {
-				rdpWindow->repaintDecorations();
-				pushDirtyArea(rdpWindow->outerWindowGeometry());
-			}*/
 		}
 
 	} else {
@@ -306,6 +443,7 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 		}
 	}
 
+	mLastMousePos = pos;
 	return true;
 }
 

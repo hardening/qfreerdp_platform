@@ -90,6 +90,7 @@ struct QFreeRdpPlatformConfig {
 	QSize screenSz;
 	DisplayMode displayMode;
 	WmTheme theme;
+	WId rootWindow;
 };
 
 
@@ -139,6 +140,7 @@ public:
 	/** @return clipboard */
 	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
 
+
 	/** @return listen address */
 	char* getListenAddress() const;
 
@@ -175,6 +177,8 @@ public:
 
 	const IconResource *getIconResource(IconResourceType rtype);
 	const WmTheme& getTheme();
+	QFreeRdpCursor *cursorHandler() const;
+	const QFreeRdpPlatformConfig *config() const { return mConfig; }
 
 protected:
 	bool loadResources();

@@ -33,6 +33,8 @@ class QFreeRdpPlatform;
 class QFreeRdpBackingStore;
 class WmWindowDecoration;
 class QImage;
+class QFreeRdpWindowManager;
+
 
 /**
  * @brief a window
@@ -40,6 +42,7 @@ class QImage;
 class QFreeRdpWindow : public QPlatformWindow
 {
 	Q_DECLARE_PRIVATE(QPlatformWindow)
+	friend class WmWindowDecoration;
 
 public:
     QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform);
@@ -65,6 +68,7 @@ public:
     bool isVisible() const { return mVisible; }
 
     WmWindowDecoration *decorations() const;
+    QFreeRdpWindowManager *windowManager() const;
     QRegion decorationGeometry() const;
     void setDecorate(bool active);
 

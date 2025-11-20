@@ -79,7 +79,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	secrets_file(nullptr),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT),
-	theme{Qt::white, Qt::black, QFont("time", 10)}
+	theme{Qt::white, Qt::black, QFont("time", 10)},
+	rootWindow(1)
 {
 	QString subVal;
 	bool ok = true;
@@ -182,6 +183,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param == "qtwebengineKbdCompat") {
 			qDebug("Enabling qtWebEngine keyboard compatibility mode");
 			qtwebengine_compat = true;
+		} else if(param == "norootwindow") {
+			rootWindow = 0;
 		}
 	}
 }
@@ -237,7 +240,7 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mNativeInterface;
 	delete mFontDb;
 	delete mWindowManager;
-	delete mScreen;
+	QWindowSystemInterface::handleScreenRemoved(mScreen->screen()->handle());
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
@@ -334,7 +337,7 @@ void QFreeRdpPlatform::initialize() {
 	// loader will overwrite our change.
 	if (mPlatformName.toLower() == "freerdp_xcb")
 		mPlatformName = "xcb";
-	QGuiApplicationPrivate::platform_name = &mPlatformName;
+	QGuiApplicationPrivate::platform_name = new QString(mPlatformName);
 	qDebug("Initializing qfreerdp platform, and setting platform_name to %s",
 			mPlatformName.toStdString().c_str());
 
@@ -514,4 +517,9 @@ const IconResource *QFreeRdpPlatform::getIconResource(IconResourceType rtype) {
 
 const WmTheme& QFreeRdpPlatform::getTheme() {
 	return mConfig->theme;
+}
+
+QFreeRdpCursor *QFreeRdpPlatform::cursorHandler() const {
+	return mCursor;
+
 }

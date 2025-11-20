@@ -60,7 +60,7 @@ QFreeRdpWindow::QFreeRdpWindow(QWindow *window, QFreeRdpPlatform *platform) :
 }
 
 #define TOP_BAR_SIZE 30
-#define BORDERS_SIZE 2
+#define WM_BORDERS_SIZE 2
 
 void QFreeRdpWindow::setDecorate(bool active)
 {
@@ -71,14 +71,14 @@ void QFreeRdpWindow::setDecorate(bool active)
 		mDecorations = new WmWindowDecoration(this, mPlatform->getTheme(), mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
 
 		setGeometry(
-				geometry().adjusted(BORDERS_SIZE, TOP_BAR_SIZE, -BORDERS_SIZE, -BORDERS_SIZE)
+				geometry().adjusted(WM_BORDERS_SIZE, TOP_BAR_SIZE, -WM_BORDERS_SIZE, -WM_BORDERS_SIZE)
 		);
 	} else {
 		delete mDecorations;
 		mDecorations = nullptr;
 
 		setGeometry(
-				geometry().adjusted(-BORDERS_SIZE, -TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE)
+				geometry().adjusted(-WM_BORDERS_SIZE, -TOP_BAR_SIZE, WM_BORDERS_SIZE, WM_BORDERS_SIZE)
 		);
 	}
 
@@ -169,7 +169,7 @@ void QFreeRdpWindow::propagateSizeHints() {
 QMargins QFreeRdpWindow::frameMargins() const
 {
 	if (mDecorate)
-		return QMargins(BORDERS_SIZE, TOP_BAR_SIZE, BORDERS_SIZE, BORDERS_SIZE);
+		return QMargins(WM_BORDERS_SIZE, TOP_BAR_SIZE, WM_BORDERS_SIZE, WM_BORDERS_SIZE);
 
 	return QMargins();
 }
@@ -194,6 +194,10 @@ WmWindowDecoration *QFreeRdpWindow::decorations() const {
 	return mDecorations;
 }
 
+QFreeRdpWindowManager *QFreeRdpWindow::windowManager() const {
+	return mPlatform->mWindowManager;
+}
+
 QRegion QFreeRdpWindow::decorationGeometry() const {
 	return mDecorations->geometryRegion();
 }
@@ -203,7 +207,7 @@ const QImage *QFreeRdpWindow::windowContent() {
 		qWarning("QFreeRdpWindow::%s: window %p(%lld) has no backing store", __func__, (void*)this, mWinId);
 		return nullptr;
 	}
-	return (const QImage*) mBackingStore->paintDevice();
+	return (const QImage*)mBackingStore->paintDevice();
 }
 
 void QFreeRdpWindow::center() {

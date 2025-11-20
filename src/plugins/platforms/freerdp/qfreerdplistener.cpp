@@ -26,13 +26,14 @@
 #include <QDebug>
 
 QFreeRdpListener::QFreeRdpListener(QFreeRdpPlatform *platform) :
-	listener(0),
-	mSocketNotifier(0),
+	listener(nullptr),
+	mSocketNotifier(nullptr),
 	mPlatform(platform)
 {
 }
 
 QFreeRdpListener::~QFreeRdpListener() {
+	disconnect(mSocketNotifier, &QSocketNotifier::activated, this, &QFreeRdpListener::incomingNewPeer);
 	delete mSocketNotifier;
 
 	if (listener) {
@@ -118,5 +119,5 @@ void QFreeRdpListener::startListener(int fd) {
 	mSocketNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
 	mPlatform->getDispatcher()->registerSocketNotifier(mSocketNotifier);
 
-	connect(mSocketNotifier, SIGNAL(activated(int)), this, SLOT(incomingNewPeer()));
+	connect(mSocketNotifier, &QSocketNotifier::activated, this, &QFreeRdpListener::incomingNewPeer);
 }

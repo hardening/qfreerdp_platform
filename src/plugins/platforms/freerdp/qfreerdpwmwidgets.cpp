@@ -23,14 +23,13 @@
 #include "qfreerdpwmwidgets.h"
 #include "qfreerdpplatform.h"
 #include "qfreerdpwindow.h"
+#include "qfreerdpwindowmanager.h"
+#include "xcursors/qfreerdpxcursor.h"
 
 #include <QImage>
 #include <QWindow>
 #include <QDebug>
 
-
-#define DECORATION_HEIGHT 30
-#define BORDERS_SIZE 2
 
 WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &theme, const IconResource *closeRes, WmWidget *parent)
 : WmWidget(theme, parent)
@@ -39,9 +38,10 @@ WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &
 , mEnteredWidget(nullptr)
 , mDirty(true)
 , mContent(nullptr)
+, mLastCursor(Qt::ArrowCursor)
 {
-	mTopSpacer = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
-	mTopSpacer2 = new WmSpacer(QSize(5, DECORATION_HEIGHT), theme, mTopContainer);
+	mTopSpacer = new WmSpacer(QSize(5, WM_DECORATION_HEIGHT), theme, mTopContainer);
+	mTopSpacer2 = new WmSpacer(QSize(5, WM_DECORATION_HEIGHT), theme, mTopContainer);
 	mTitle = new WmLabel(freerdpW->window()->title(), theme, mTopContainer);
 	mCloseButton = new WmIconButton(closeRes->normalIcon, closeRes->overIcon, theme, mTopContainer);
 
@@ -58,11 +58,19 @@ WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &
 	QWindow *w = mWindow->window();
 	resizeFromWindow(w);
 
-	connect(mCloseButton, SIGNAL(clicked()), this, SLOT(onCloseClicked()));
+	connect(mCloseButton, &WmIconButton::clicked, this, &WmWindowDecoration::onCloseClicked);
+	connect(mTitle, &WmWidget::startDrag, this, &WmWindowDecoration::onStartDragging);
+
+	QFreeRdpWindowManager *wm = freerdpW->windowManager();
+	connect(this, &WmWindowDecoration::startDrag, wm, &QFreeRdpWindowManager::onStartDragging);
 }
 
 WmWindowDecoration::~WmWindowDecoration() {
-	disconnect(mCloseButton, SIGNAL(clicked()), this, SLOT(onCloseClicked()));
+	QFreeRdpWindowManager *wm = mWindow->windowManager();
+	disconnect(this, &WmWindowDecoration::startDrag, wm, &QFreeRdpWindowManager::onStartDragging);
+
+	disconnect(mTitle, &WmWidget::startDrag, this, &WmWindowDecoration::onStartDragging);
+	disconnect(mCloseButton, &WmIconButton::clicked, this, &WmWindowDecoration::onCloseClicked);
 	delete mContent;
 	delete mTopContainer;
 }
@@ -77,11 +85,74 @@ void WmWindowDecoration::setTitle(const QString &title) {
 
 void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 	QPoint wPos = w->position();
-	mPos = QPoint(wPos.x() - BORDERS_SIZE, wPos.y() - DECORATION_HEIGHT);
-	mSize = QSize(w->width() + BORDERS_SIZE*2, w->height() + DECORATION_HEIGHT + BORDERS_SIZE);
+	mPos = QPoint(wPos.x() - WM_BORDERS_SIZE, wPos.y() - WM_DECORATION_HEIGHT);
+	mSize = QSize(w->width() + WM_BORDERS_SIZE*2, w->height() + WM_DECORATION_HEIGHT + WM_BORDERS_SIZE);
 
 	mGeometryRegion = mWindow->outerWindowGeometry();
 	mGeometryRegion -= w->geometry();
+
+	mResizeRegions.clear();
+
+	/* top */
+	QRegion r( QRect(5, 0, mSize.width() - 5, 2) );
+	ResizeAction a;
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP;
+	a.cursor = Qt::SizeVerCursor;
+	mResizeRegions.push_back(a);
+
+	/* top-left */
+	r = QRegion(QRect(0, 0, 5, WM_BORDERS_SIZE));
+	r += QRect(0, 0, WM_BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP_LEFT;
+	a.cursor = Qt::SizeFDiagCursor;
+	mResizeRegions.push_back(a);
+
+	/* top-right */
+	r = QRegion(QRect(mSize.width()-5, 0, 5, WM_BORDERS_SIZE));
+	r += QRect(mSize.width() - WM_BORDERS_SIZE, 0, WM_BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP_RIGHT;
+	a.cursor = Qt::SizeBDiagCursor;
+	mResizeRegions.push_back(a);
+
+	/* bottom */
+	r = QRegion( QRect(5, mSize.height() - WM_BORDERS_SIZE, mSize.width() - 5, WM_BORDERS_SIZE) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM;
+	a.cursor = Qt::SizeVerCursor;
+	mResizeRegions.push_back(a);
+
+	/* bottom-left */
+	r = QRegion( QRect(0, mSize.height() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE) );
+	r += QRect(0, mSize.height() - 5, WM_BORDERS_SIZE, 5);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM_LEFT;
+	a.cursor = Qt::SizeBDiagCursor;
+	mResizeRegions.push_back(a);
+
+	/* bottom-right */
+	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, mSize.height() - 5, WM_BORDERS_SIZE, 5) );
+	r += QRect(mSize.width() - 5, mSize.height() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE);
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM_RIGHT;
+	a.cursor = Qt::SizeFDiagCursor;
+	mResizeRegions.push_back(a);
+
+	/* left */
+	r = QRegion( QRect(0, 5, WM_BORDERS_SIZE, mSize.height() - 5) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_LEFT;
+	a.cursor = Qt::SizeHorCursor;
+	mResizeRegions.push_back(a);
+
+	/* right */
+	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE, mSize.height() - 5) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_RIGHT;
+	a.cursor = Qt::SizeHorCursor;
+	mResizeRegions.push_back(a);
 
 	handleResize();
 }
@@ -91,10 +162,31 @@ void WmWindowDecoration::handleResize() {
 	delete mContent;
 	mContent = new QImage(mSize, QImage::Format_ARGB32);
 	mContent->fill(mTheme.backColor);
-	mTopContainer->setSize(QSize(mSize.width(), DECORATION_HEIGHT));
+	mTopContainer->setSize(QSize(mSize.width(), WM_DECORATION_HEIGHT));
 }
 
 void WmWindowDecoration::handleMouse(const QPoint &pos, Qt::MouseButtons buttons) {
+	Qt::CursorShape newCursor = Qt::ArrowCursor;
+
+	for(auto resizeAction: mResizeRegions)
+	{
+		if (resizeAction.r.contains(pos)) {
+			if (buttons & Qt::LeftButton)
+				emit startDrag(resizeAction.action, mWindow);
+
+			newCursor = resizeAction.cursor;
+			break;
+		}
+	}
+
+	if (mLastCursor != newCursor) {
+		QFreeRdpCursor *cursorHandler = mWindow->mPlatform->cursorHandler();
+		QCursor c(newCursor);
+
+		cursorHandler->changeCursor(&c, mWindow->window());
+		mLastCursor = newCursor;
+	}
+
 	if (mTopContainer->localGeometry().contains(pos)) {
 		if (mEnteredWidget != mTopContainer) {
 			mEnteredWidget = mTopContainer;
@@ -114,6 +206,15 @@ void WmWindowDecoration::handleLeave() {
 		mEnteredWidget->handleLeave();
 		mEnteredWidget = nullptr;
 	}
+
+	if (mLastCursor != Qt::ArrowCursor) {
+		QFreeRdpCursor *cursorHandler = mWindow->mPlatform->cursorHandler();
+		QCursor c(Qt::ArrowCursor);
+
+		cursorHandler->changeCursor(&c, mWindow->window());
+		mLastCursor = Qt::ArrowCursor;
+	}
+
 }
 
 void WmWindowDecoration::repaint(QPainter &painter, const QRegion &dirtyRegion) {
@@ -142,6 +243,11 @@ void WmWindowDecoration::repaint(QPainter &painter, const QPoint &pos) {
 void WmWindowDecoration::handleChildDirty(WmWidget* child, const QRegion &dirty) {
 	mDirty = true;
 	mWindow->notifyDirty( dirty.translated(child->position()) );
+}
+
+void WmWindowDecoration::onStartDragging(WmWidget::DraggingType dragType)
+{
+	emit startDrag(dragType, mWindow);
 }
 
 void WmWindowDecoration::onCloseClicked() {
