@@ -79,7 +79,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	secrets_file(nullptr),
 	screenSz(800, 600),
 	displayMode(DisplayMode::AUTODETECT),
-	theme{Qt::white, Qt::black, QFont("time", 10)}
+	theme{Qt::white, Qt::black, QFont("time", 10)},
+	rootWindow(1)
 {
 	QString subVal;
 	bool ok = true;
@@ -182,6 +183,8 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param == "qtwebengineKbdCompat") {
 			qDebug("Enabling qtWebEngine keyboard compatibility mode");
 			qtwebengine_compat = true;
+		} else if(param == "norootwindow") {
+			rootWindow = 0;
 		}
 	}
 }

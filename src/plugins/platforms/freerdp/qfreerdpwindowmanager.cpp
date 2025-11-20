@@ -76,9 +76,9 @@ void QFreeRdpWindowManager::addWindow(QFreeRdpWindow *window) {
 
 	QRegion dirtyRegion = window->outerWindowGeometry();
 
-	// mWinId 1 is our original page, where we don't want any decorations
+	// rootWindow(mWinId==1) is our original page, where we don't want any decorations
 	// Any other window is fair game.
-	if (window->winId() > 1 && isDecorableWindow(qwindow)) {
+	if (window->winId() != mPlatform->config()->rootWindow && isDecorableWindow(qwindow)) {
 		qDebug("WM activating windows decorations");
 		mDecoratedWindows++;
 		dirtyRegion = window->screen()->geometry();
@@ -238,7 +238,7 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 		QWindowSystemInterface::handleFocusWindowChanged(w->window());
 #endif // QT_VERSION
 
-		if (w->winId() != 1)
+		if (w->winId() != mPlatform->config()->rootWindow)
 			raise(w);
 	}
 
