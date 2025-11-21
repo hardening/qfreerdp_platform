@@ -238,7 +238,7 @@ void QFreeRdpWindowManager::setFocusWindow(QFreeRdpWindow *w) {
 		QWindowSystemInterface::handleFocusWindowChanged(w->window());
 #endif // QT_VERSION
 
-		if (w->winId() != mPlatform->config()->rootWindow)
+		if (w->winId() != mPlatform->config()->rootWindow && !(w->window()->flags() & Qt::WindowStaysOnBottomHint))
 			raise(w);
 	}
 
