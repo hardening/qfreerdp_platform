@@ -59,7 +59,6 @@ WmWindowDecoration::WmWindowDecoration(QFreeRdpWindow *freerdpW, const WmTheme &
 	resizeFromWindow(w);
 
 	connect(mCloseButton, &WmIconButton::clicked, this, &WmWindowDecoration::onCloseClicked);
-	connect(mTitle, &WmWidget::startDrag, this, &WmWindowDecoration::onStartDragging);
 
 	QFreeRdpWindowManager *wm = freerdpW->windowManager();
 	connect(this, &WmWindowDecoration::startDrag, wm, &QFreeRdpWindowManager::onStartDragging);
@@ -69,7 +68,6 @@ WmWindowDecoration::~WmWindowDecoration() {
 	QFreeRdpWindowManager *wm = mWindow->windowManager();
 	disconnect(this, &WmWindowDecoration::startDrag, wm, &QFreeRdpWindowManager::onStartDragging);
 
-	disconnect(mTitle, &WmWidget::startDrag, this, &WmWindowDecoration::onStartDragging);
 	disconnect(mCloseButton, &WmIconButton::clicked, this, &WmWindowDecoration::onCloseClicked);
 	delete mContent;
 	delete mTopContainer;
@@ -93,65 +91,83 @@ void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
 
 	mResizeRegions.clear();
 
-	/* top */
-	QRegion r( QRect(5, 0, mSize.width() - 5, 2) );
-	ResizeAction a;
-	a.r = r;
-	a.action = DRAGGING_RESIZE_TOP;
-	a.cursor = Qt::SizeVerCursor;
-	mResizeRegions.push_back(a);
+	/* Define corner regions first to give them priority */
 
 	/* top-left */
-	r = QRegion(QRect(0, 0, 5, WM_BORDERS_SIZE));
-	r += QRect(0, 0, WM_BORDERS_SIZE, 5);
+	QRegion r = QRegion(QRect(0, 0, WM_CORNER_GRAB_SIZE, WM_CORNER_GRAB_SIZE));
+	ResizeAction a;
 	a.r = r;
 	a.action = DRAGGING_RESIZE_TOP_LEFT;
 	a.cursor = Qt::SizeFDiagCursor;
 	mResizeRegions.push_back(a);
 
 	/* top-right */
-	r = QRegion(QRect(mSize.width()-5, 0, 5, WM_BORDERS_SIZE));
-	r += QRect(mSize.width() - WM_BORDERS_SIZE, 0, WM_BORDERS_SIZE, 5);
+	r = QRegion(QRect(mSize.width()-WM_CORNER_GRAB_SIZE, 0, WM_CORNER_GRAB_SIZE, WM_CORNER_GRAB_SIZE));
 	a.r = r;
 	a.action = DRAGGING_RESIZE_TOP_RIGHT;
 	a.cursor = Qt::SizeBDiagCursor;
 	mResizeRegions.push_back(a);
 
-	/* bottom */
-	r = QRegion( QRect(5, mSize.height() - WM_BORDERS_SIZE, mSize.width() - 5, WM_BORDERS_SIZE) );
-	a.r = r;
-	a.action = DRAGGING_RESIZE_BOTTOM;
-	a.cursor = Qt::SizeVerCursor;
-	mResizeRegions.push_back(a);
-
 	/* bottom-left */
-	r = QRegion( QRect(0, mSize.height() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE) );
-	r += QRect(0, mSize.height() - 5, WM_BORDERS_SIZE, 5);
+	r = QRegion( QRect(0, mSize.height() - WM_BORDERS_SIZE, WM_CORNER_GRAB_SIZE, WM_BORDERS_SIZE) );
+	r += QRect(0, mSize.height() - WM_CORNER_GRAB_SIZE, WM_BORDERS_SIZE, WM_CORNER_GRAB_SIZE);
 	a.r = r;
 	a.action = DRAGGING_RESIZE_BOTTOM_LEFT;
 	a.cursor = Qt::SizeBDiagCursor;
 	mResizeRegions.push_back(a);
 
 	/* bottom-right */
-	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, mSize.height() - 5, WM_BORDERS_SIZE, 5) );
-	r += QRect(mSize.width() - 5, mSize.height() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE);
+	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, mSize.height() - WM_CORNER_GRAB_SIZE,
+					WM_BORDERS_SIZE, WM_CORNER_GRAB_SIZE) );
+	r += QRect(mSize.width() - WM_CORNER_GRAB_SIZE, mSize.height() - WM_BORDERS_SIZE,
+			WM_CORNER_GRAB_SIZE, WM_BORDERS_SIZE);
 	a.r = r;
 	a.action = DRAGGING_RESIZE_BOTTOM_RIGHT;
 	a.cursor = Qt::SizeFDiagCursor;
 	mResizeRegions.push_back(a);
 
+	/* Then side resize handles */
+
+	/* top */
+	r = QRegion( QRect(WM_CORNER_GRAB_SIZE, 0, mSize.width() - 2 * WM_CORNER_GRAB_SIZE, 2) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_TOP;
+	a.cursor = Qt::SizeVerCursor;
+	mResizeRegions.push_back(a);
+
+	/* bottom */
+	r = QRegion( QRect(WM_CORNER_GRAB_SIZE, mSize.height() - WM_BORDERS_SIZE,
+					mSize.width() - 2 * WM_CORNER_GRAB_SIZE, WM_BORDERS_SIZE) );
+	a.r = r;
+	a.action = DRAGGING_RESIZE_BOTTOM;
+	a.cursor = Qt::SizeVerCursor;
+	mResizeRegions.push_back(a);
+
 	/* left */
-	r = QRegion( QRect(0, 5, WM_BORDERS_SIZE, mSize.height() - 5) );
+	r = QRegion( QRect(0, WM_CORNER_GRAB_SIZE, WM_BORDERS_SIZE,
+					mSize.height() - WM_CORNER_GRAB_SIZE) );
 	a.r = r;
 	a.action = DRAGGING_RESIZE_LEFT;
 	a.cursor = Qt::SizeHorCursor;
 	mResizeRegions.push_back(a);
 
 	/* right */
-	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, 5, WM_BORDERS_SIZE, mSize.height() - 5) );
+	r = QRegion( QRect(mSize.width() - WM_BORDERS_SIZE, WM_CORNER_GRAB_SIZE,
+					WM_BORDERS_SIZE, mSize.height() - WM_CORNER_GRAB_SIZE) );
 	a.r = r;
 	a.action = DRAGGING_RESIZE_RIGHT;
 	a.cursor = Qt::SizeHorCursor;
+	mResizeRegions.push_back(a);
+
+	/* And finally the hotspot to grab the window for moving, spanning the
+	 * title bar minus borders */
+
+	/* move from top bar */
+	r = QRegion(QRect(WM_BORDERS_SIZE, WM_BORDERS_SIZE,
+				   mSize.width() - 2 * WM_BORDERS_SIZE, WM_DECORATION_HEIGHT - WM_BORDERS_SIZE));
+	a.r = r;
+	a.action = DRAGGING_MOVE;
+	a.cursor = Qt::SizeAllCursor;
 	mResizeRegions.push_back(a);
 
 	handleResize();
@@ -243,11 +259,6 @@ void WmWindowDecoration::repaint(QPainter &painter, const QPoint &pos) {
 void WmWindowDecoration::handleChildDirty(WmWidget* child, const QRegion &dirty) {
 	mDirty = true;
 	mWindow->notifyDirty( dirty.translated(child->position()) );
-}
-
-void WmWindowDecoration::onStartDragging(WmWidget::DraggingType dragType)
-{
-	emit startDrag(dragType, mWindow);
 }
 
 void WmWindowDecoration::onCloseClicked() {

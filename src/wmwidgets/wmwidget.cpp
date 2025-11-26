@@ -95,9 +95,7 @@ void WmWidget::handleLeave() {
 
 void WmWidget::handleMouse(const QPoint &pos, Qt::MouseButtons buttons) {
 	Q_UNUSED(pos);
-
-	if (buttons & Qt::LeftButton)
-		emit startDrag(WmWidget::DRAGGING_MOVE);
+	Q_UNUSED(buttons)
 }
 
 void WmWidget::handleResize() {

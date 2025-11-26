@@ -45,6 +45,7 @@ class QFreeRdpWindow;
 
 #define WM_DECORATION_HEIGHT 30
 #define WM_BORDERS_SIZE 2
+#define WM_CORNER_GRAB_SIZE 5
 
 
 /** @brief wmwidget that does window's decoration */
@@ -70,7 +71,6 @@ signals:
 	void startDrag(WmWidget::DraggingType dragType, QFreeRdpWindow *w);
 
 public slots:
-	void onStartDragging(WmWidget::DraggingType dragType);
 	void onCloseClicked();
 
 protected:
