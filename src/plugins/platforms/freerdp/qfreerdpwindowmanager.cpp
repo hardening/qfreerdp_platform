@@ -28,6 +28,7 @@
 #include "xcursors/qfreerdpxcursor.h"
 
 #include <QtGui/qpa/qwindowsysteminterface.h>
+#include <QMargins>
 #include <QRegion>
 #include <QPainter>
 #include <QDebug>
@@ -276,40 +277,43 @@ bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons
 		return true;
 	}
 
-	QPoint delta = (pos - mLastMousePos);
-	mLastMousePos = pos;
+	QPoint delta = (pos - mLastValidMousePos);
 
 	auto window = mDraggedWindow->window();
 	QPoint newPosition = window->position() + delta;
+	QRect newGeometry = QRect(newPosition, window->size()) + mDraggedWindow->frameMargins();
 
-	if (isValidWindowGeometry(window, QRect(newPosition, window->size())))
-		window->setPosition(newPosition);
+	if (auto offset = validateWindowGeometry(window, newGeometry)) {
+		window->setPosition(newPosition + offset.value());
+		mLastValidMousePos = pos;
+	}
 	return true;
 }
 
-bool QFreeRdpWindowManager::isValidWindowGeometry(const QWindow *window, const QRect &newGeometry)
+std::optional<QPoint> QFreeRdpWindowManager::validateWindowGeometry(const QWindow *window, const QRect &newGeometry)
 {
-	QPoint newPosition = newGeometry.topLeft();
+	QMargins antiLossMargins(5, WM_DECORATION_HEIGHT, 10, 5);
 	auto screenGeom = window->screen()->geometry();
+	QPoint offset(0, 0);
 
 	if (!newGeometry.isValid())
-		return false;
+		return std::nullopt;
 
-	/* ensure that the window is still accessible */
-	QSize newSize = newGeometry.size();
-	if (!(newPosition.x() + newSize.width() - 10 > 0 && newPosition.y() > WM_DECORATION_HEIGHT &&
-			newPosition.y() < screenGeom.bottom() && newPosition.x() < screenGeom.right() - 5))
-		return false;
+	/* ensure that the user cannot lose their window out of the viewport */
+	if (newGeometry.right() - antiLossMargins.right() <= 0)
+		offset.setX(antiLossMargins.right() - newGeometry.right());
+	else if (newGeometry.left() > screenGeom.right() - antiLossMargins.left())
+		offset.setX(screenGeom.right() - antiLossMargins.left() - newGeometry.left());
 
-	QSize minimumSize(
-		5 * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
-		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
-	);
+	if (newGeometry.top() < 0)
+		offset.setY(-newGeometry.top());
+	else if (newGeometry.top() > screenGeom.bottom() - WM_DECORATION_HEIGHT)
+		offset.setY(screenGeom.bottom() - WM_DECORATION_HEIGHT - newGeometry.top());
 
-	return newSize.width() >= minimumSize.width() && newSize.height() >= minimumSize.height();
+	return offset;
 }
 
-bool QFreeRdpWindowManager::handleWindowResize(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
+bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
 {
 	if (!(buttons & Qt::LeftButton)) {
 		qDebug() << "end of resizing";
@@ -321,42 +325,86 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &pos, Qt::MouseButto
 		return true;
 	}
 
-	QPoint delta = (pos - mLastMousePos);
-	mLastMousePos = pos;
-
 	auto window = mDraggedWindow->window();
-	QRect newGeometry = window->geometry();
+	QMargins margins = mDraggedWindow->frameMargins();
+	QRect geometry = window->geometry() + margins;
+	QPoint pos = mousePos;
+	QSize minimumSize(
+		WM_CORNER_GRAB_SIZE * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
+		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
+	);
+
 	switch (mDraggingType) {
 	case WmWidget::DRAGGING_RESIZE_TOP:
-		newGeometry.adjust(0, delta.y(), 0, 0);
-		break;
-	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
-		newGeometry.adjust(delta.x(), delta.y(), 0, 0);
-		break;
-	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
-		newGeometry.adjust(0, delta.y(), delta.x(), 0);
+		pos.setX(geometry.x());
 		break;
 	case WmWidget::DRAGGING_RESIZE_BOTTOM:
-		newGeometry.adjust(0, 0, 0, delta.y());
-		break;
-	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
-		newGeometry.adjust(delta.x(), 0, 0, delta.y());
-		break;
-	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
-		newGeometry.adjust(0, 0, delta.x(), delta.y());
+		pos.setX(geometry.right());
 		break;
 	case WmWidget::DRAGGING_RESIZE_LEFT:
-		newGeometry.adjust(delta.x(), 0, 0, 0);
+		pos.setY(geometry.y());
 		break;
 	case WmWidget::DRAGGING_RESIZE_RIGHT:
-		newGeometry.adjust(0, 0, delta.x(), 0);
+		pos.setY(geometry.bottom());
+		break;
+	default:
+		break;
+	}
+
+	switch (mDraggingType) {
+	case WmWidget::DRAGGING_RESIZE_TOP:
+	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
+	case WmWidget::DRAGGING_RESIZE_LEFT:
+		geometry.setTopLeft(pos);
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
+		if (auto offset = validateWindowGeometry(window, geometry)) {
+			geometry.adjust(offset.value().x(), offset.value().y(), 0, 0);
+			window->setGeometry(geometry - margins);
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM:
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
+	case WmWidget::DRAGGING_RESIZE_RIGHT:
+		geometry.setBottomRight(pos);
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
+		if (auto offset = validateWindowGeometry(window, geometry)) {
+			geometry.adjust(0, 0, offset.value().x(), offset.value().y());
+			window->setGeometry(geometry - margins);
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
+		geometry.setTopRight(pos);
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
+		if (auto offset = validateWindowGeometry(window, geometry)) {
+			geometry.adjust(0, offset.value().y(), offset.value().x(), 0);
+			window->setGeometry(geometry - margins);
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
+		geometry.setBottomLeft(pos);
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
+		if (auto offset = validateWindowGeometry(window, geometry)) {
+			geometry.adjust(offset.value().x(), 0, 0, offset.value().y());
+			window->setGeometry(geometry - margins);
+		}
 		break;
 	default:
 		return true;
 	}
+	mLastValidMousePos = mousePos;
 
-	if (isValidWindowGeometry(window, newGeometry))
-		window->setGeometry(newGeometry);
 	return true;
 }
 
@@ -443,7 +491,7 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 		}
 	}
 
-	mLastMousePos = pos;
+	mLastValidMousePos = pos;
 	return true;
 }
 
