@@ -294,21 +294,26 @@ std::optional<QPoint> QFreeRdpWindowManager::validateWindowGeometry(const QWindo
 {
 	QMargins antiLossMargins(5, WM_DECORATION_HEIGHT, 10, 5);
 	auto screenGeom = window->screen()->geometry();
+	// QRect's bottom() and right() unfortunately give off by one results
+	// https://doc.qt.io/qt-6/qrect.html#bottom
+	int screenBottom = screenGeom.top() + screenGeom.height();
+	int screenRight = screenGeom.left() + screenGeom.width();
+	int geomRight = newGeometry.left() + newGeometry.width();
 	QPoint offset(0, 0);
 
 	if (!newGeometry.isValid())
 		return std::nullopt;
 
 	/* ensure that the user cannot lose their window out of the viewport */
-	if (newGeometry.right() - antiLossMargins.right() <= 0)
-		offset.setX(antiLossMargins.right() - newGeometry.right());
-	else if (newGeometry.left() > screenGeom.right() - antiLossMargins.left())
-		offset.setX(screenGeom.right() - antiLossMargins.left() - newGeometry.left());
+	if (geomRight - antiLossMargins.right() <= 0)
+		offset.setX(antiLossMargins.right() - geomRight);
+	else if (newGeometry.left() > screenRight - antiLossMargins.left())
+		offset.setX(screenRight - antiLossMargins.left() - newGeometry.left());
 
 	if (newGeometry.top() < 0)
 		offset.setY(-newGeometry.top());
-	else if (newGeometry.top() > screenGeom.bottom() - WM_DECORATION_HEIGHT)
-		offset.setY(screenGeom.bottom() - WM_DECORATION_HEIGHT - newGeometry.top());
+	else if (newGeometry.top() > screenBottom - WM_DECORATION_HEIGHT)
+		offset.setY(screenBottom - WM_DECORATION_HEIGHT - newGeometry.top());
 
 	return offset;
 }
@@ -339,13 +344,13 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 		pos.setX(geometry.x());
 		break;
 	case WmWidget::DRAGGING_RESIZE_BOTTOM:
-		pos.setX(geometry.right());
+		pos.setX(geometry.left() + geometry.width());
 		break;
 	case WmWidget::DRAGGING_RESIZE_LEFT:
 		pos.setY(geometry.y());
 		break;
 	case WmWidget::DRAGGING_RESIZE_RIGHT:
-		pos.setY(geometry.bottom());
+		pos.setY(geometry.top() + geometry.height());
 		break;
 	default:
 		break;
