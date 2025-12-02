@@ -31,11 +31,7 @@ WmHContainer::WmHContainer(const WmTheme& theme, WmWidget *parent)
 {
 }
 
-WmHContainer::~WmHContainer() {
-	foreach(auto item, mItems) {
-		delete item.widget;
-	}
-}
+WmHContainer::~WmHContainer() = default;
 
 void WmHContainer::push(WmWidget* item, WmWidgetSizePolicy policy) {
 	item->setParent(this);
