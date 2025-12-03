@@ -305,7 +305,7 @@ std::optional<QPoint> QFreeRdpWindowManager::validateWindowGeometry(const QWindo
 		return std::nullopt;
 
 	/* ensure that the user cannot lose their window out of the viewport */
-	if (geomRight - antiLossMargins.right() <= 0)
+	if (geomRight < antiLossMargins.right())
 		offset.setX(antiLossMargins.right() - geomRight);
 	else if (newGeometry.left() > screenRight - antiLossMargins.left())
 		offset.setX(screenRight - antiLossMargins.left() - newGeometry.left());
