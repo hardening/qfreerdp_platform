@@ -84,13 +84,6 @@ protected slots:
 	void onGenerateFrame();
 
 protected:
-	// Returns std::nullopt if the new geometry is invalid, otherwize return a
-	// QPoint representing a 2D vector offset to be used to correct the
-	// provided `newGeometry` (handling of this offset will be different
-	// depending on the type of initiating event)
-	static std::optional<QPoint> validateWindowGeometry(const QWindow *window, const QRect &newGeometry);
-
-protected:
 	QFreeRdpPlatform *mPlatform;
 	QFreeRdpWindowList mWindows;
 	QFreeRdpWindow *mFocusWindow;

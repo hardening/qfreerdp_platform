@@ -38,6 +38,38 @@
 QT_BEGIN_NAMESPACE
 
 
+// Returns std::nullopt if the new geometry is invalid, otherwize return a
+// QPoint representing a 2D vector offset to be used to correct the provided
+// `newGeometry` (handling of this offset will be different depending on the
+// type of initiating event)
+static std::optional<QPoint> validateWindowGeometry(const QRect &screenGeometry, const QRect &newGeometry)
+{
+	QMargins antiLossMargins(5, 0 /* top, unused */, 10, 0 /* bottom, unused */);
+	// QRect's bottom() and right() unfortunately give off by one results
+	// https://doc.qt.io/qt-6/qrect.html#bottom
+	int screenBottom = screenGeometry.top() + screenGeometry.height();
+	int screenRight = screenGeometry.left() + screenGeometry.width();
+	int geomRight = newGeometry.left() + newGeometry.width();
+	QPoint offset(0, 0);
+
+	if (!newGeometry.isValid())
+		return std::nullopt;
+
+	/* ensure that the user cannot lose their window out of the viewport */
+	if (geomRight < antiLossMargins.right())
+		offset.setX(antiLossMargins.right() - geomRight);
+	else if (newGeometry.left() > screenRight - antiLossMargins.left())
+		offset.setX(screenRight - antiLossMargins.left() - newGeometry.left());
+
+	if (newGeometry.top() < 0)
+		offset.setY(-newGeometry.top());
+	else if (newGeometry.top() > screenBottom - WM_DECORATION_HEIGHT)
+		offset.setY(screenBottom - WM_DECORATION_HEIGHT - newGeometry.top());
+
+	return offset;
+}
+
+
 QFreeRdpWindowManager::QFreeRdpWindowManager(QFreeRdpPlatform *platform, int fps)
 : mPlatform(platform)
 , mFocusWindow(0)
@@ -283,39 +315,11 @@ bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons
 	QPoint newPosition = window->position() + delta;
 	QRect newGeometry = QRect(newPosition, window->size()) + mDraggedWindow->frameMargins();
 
-	if (auto offset = validateWindowGeometry(window, newGeometry)) {
+	if (auto offset = validateWindowGeometry(window->screen()->geometry(), newGeometry)) {
 		window->setPosition(newPosition + offset.value());
 		mLastValidMousePos = pos;
 	}
 	return true;
-}
-
-std::optional<QPoint> QFreeRdpWindowManager::validateWindowGeometry(const QWindow *window, const QRect &newGeometry)
-{
-	QMargins antiLossMargins(5, WM_DECORATION_HEIGHT, 10, 5);
-	auto screenGeom = window->screen()->geometry();
-	// QRect's bottom() and right() unfortunately give off by one results
-	// https://doc.qt.io/qt-6/qrect.html#bottom
-	int screenBottom = screenGeom.top() + screenGeom.height();
-	int screenRight = screenGeom.left() + screenGeom.width();
-	int geomRight = newGeometry.left() + newGeometry.width();
-	QPoint offset(0, 0);
-
-	if (!newGeometry.isValid())
-		return std::nullopt;
-
-	/* ensure that the user cannot lose their window out of the viewport */
-	if (geomRight < antiLossMargins.right())
-		offset.setX(antiLossMargins.right() - geomRight);
-	else if (newGeometry.left() > screenRight - antiLossMargins.left())
-		offset.setX(screenRight - antiLossMargins.left() - newGeometry.left());
-
-	if (newGeometry.top() < 0)
-		offset.setY(-newGeometry.top());
-	else if (newGeometry.top() > screenBottom - WM_DECORATION_HEIGHT)
-		offset.setY(screenBottom - WM_DECORATION_HEIGHT - newGeometry.top());
-
-	return offset;
 }
 
 bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
@@ -365,7 +369,7 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
 		if (geometry.height() < minimumSize.height())
 			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
-		if (auto offset = validateWindowGeometry(window, geometry)) {
+		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
 			geometry.adjust(offset.value().x(), offset.value().y(), 0, 0);
 			window->setGeometry(geometry - margins);
 		}
@@ -378,7 +382,7 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
 		if (geometry.height() < minimumSize.height())
 			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
-		if (auto offset = validateWindowGeometry(window, geometry)) {
+		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
 			geometry.adjust(0, 0, offset.value().x(), offset.value().y());
 			window->setGeometry(geometry - margins);
 		}
@@ -389,7 +393,7 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
 		if (geometry.height() < minimumSize.height())
 			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
-		if (auto offset = validateWindowGeometry(window, geometry)) {
+		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
 			geometry.adjust(0, offset.value().y(), offset.value().x(), 0);
 			window->setGeometry(geometry - margins);
 		}
@@ -400,7 +404,7 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
 		if (geometry.height() < minimumSize.height())
 			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
-		if (auto offset = validateWindowGeometry(window, geometry)) {
+		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
 			geometry.adjust(offset.value().x(), 0, 0, offset.value().y());
 			window->setGeometry(geometry - margins);
 		}
@@ -524,6 +528,68 @@ bool QFreeRdpWindowManager::handleWheelEvent(const QPoint &pos, int wheelDelta)
 
 	return true;
 }
+
+
+#ifdef BUILD_TESTS
+#include "tests/qfreerdptestharness.h"
+
+#include <QTest>
+
+void QFreeRdpTest::windowManagerTestValidateGeometry_data() {
+	QTest::addColumn<QRect>("inputGeometry");
+	QTest::addColumn<std::optional<QPoint>>("offsetResult");
+
+	// Assuming a 800x600 screen geometry
+
+	QTest::newRow("completely valid window")
+		<< QRect(50, 20, 200, 100)
+		<< std::optional{QPoint(0, 0)};
+
+	QTest::newRow("invalid window geometry")
+		<< QRect(QPoint(100, 100), QPoint(50, 50))
+		<< std::optional<QPoint>{std::nullopt};
+
+	QTest::newRow("window disappearing to the left")
+		<< QRect(-100, 10, 90, 50)
+		<< std::optional{QPoint(20, 0)};
+
+	QTest::newRow("window disappearing to the right")
+		<< QRect(810, 10, 90, 50)
+		<< std::optional{QPoint(-15, 0)};
+
+	QTest::newRow("window bumping the top of the screen")
+		<< QRect(50, -5, 90, 50)
+		<< std::optional{QPoint(0, 5)};
+
+	QTest::newRow("window disappearing to the bottom")
+		<< QRect(50, 610, 90, 50)
+		<< std::optional{QPoint(0, -WM_DECORATION_HEIGHT - 10)};
+
+	QTest::newRow("window disappeared to the top-left")
+		<< QRect(-50, -50, 40, 40)
+		<< std::optional{QPoint(20, 50)};
+
+	QTest::newRow("window disappeared to the top-right")
+		<< QRect(850, -50, 40, 40)
+		<< std::optional{QPoint(-55, 50)};
+
+	QTest::newRow("window disappeared to the bottom-left")
+		<< QRect(-50, 650, 40, 40)
+		<< std::optional{QPoint(20, -50 - WM_DECORATION_HEIGHT)};
+
+	QTest::newRow("window disappeared to the bottom-right")
+		<< QRect(850, 650, 40, 40)
+		<< std::optional{QPoint(-55, -50 - WM_DECORATION_HEIGHT)};
+}
+
+void QFreeRdpTest::windowManagerTestValidateGeometry() {
+	QRect screenGeometry(0, 0, 800, 600);
+	QFETCH(QRect, inputGeometry);
+	QFETCH(std::optional<QPoint>, offsetResult);
+
+	QCOMPARE(validateWindowGeometry(screenGeometry, inputGeometry), offsetResult);
+}
+#endif // BUILD_TESTS
 
 QT_END_NAMESPACE
 
