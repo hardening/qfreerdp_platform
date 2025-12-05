@@ -42,8 +42,7 @@ QT_BEGIN_NAMESPACE
 // QPoint representing a 2D vector offset to be used to correct the provided
 // `newGeometry` (handling of this offset will be different depending on the
 // type of initiating event)
-static std::optional<QPoint> validateWindowGeometry(const QRect &screenGeometry, const QRect &newGeometry)
-{
+static std::optional<QPoint> validateWindowGeometry(const QRect &screenGeometry, const QRect &newGeometry) {
 	QMargins antiLossMargins(5, 0 /* top, unused */, 10, 0 /* bottom, unused */);
 	// QRect's bottom() and right() unfortunately give off by one results
 	// https://doc.qt.io/qt-6/qrect.html#bottom
@@ -67,6 +66,93 @@ static std::optional<QPoint> validateWindowGeometry(const QRect &screenGeometry,
 		offset.setY(screenBottom - WM_DECORATION_HEIGHT - newGeometry.top());
 
 	return offset;
+}
+
+// Returns either a new geometry for a window being dragged, while respecting
+// minimum size and position constraints, or the original geometry if the
+// requested geometry is completely invalid
+static QRect computeWindowResizeGeometry(
+		const QPoint &mousePos, const QRect &screenGeometry,
+		const QRect &winGeometry, WmWidget::DraggingType dragType) {
+	QRect geometry(winGeometry);
+	QPoint pos(mousePos);
+	QSize minimumSize(
+		WM_CORNER_GRAB_SIZE * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
+		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
+	);
+
+	switch (dragType) {
+	case WmWidget::DRAGGING_RESIZE_TOP:
+		pos.setX(geometry.x());
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM:
+		pos.setX(geometry.x() + geometry.width());
+		break;
+	case WmWidget::DRAGGING_RESIZE_LEFT:
+		pos.setY(geometry.y());
+		break;
+	case WmWidget::DRAGGING_RESIZE_RIGHT:
+		pos.setY(geometry.y() + geometry.height());
+		break;
+	default:
+		break;
+	}
+
+	switch (dragType) {
+	case WmWidget::DRAGGING_RESIZE_TOP:
+	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
+	case WmWidget::DRAGGING_RESIZE_LEFT:
+		geometry.setTopLeft(pos);
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
+		if (auto offset = validateWindowGeometry(screenGeometry, geometry)) {
+			geometry.adjust(offset.value().x(), offset.value().y(), 0, 0);
+			return geometry;
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM:
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
+	case WmWidget::DRAGGING_RESIZE_RIGHT:
+		// QRect's bottom right has historical baggage :/
+		geometry.setBottomRight(pos - QPoint(1, 1));
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
+		if (auto offset = validateWindowGeometry(screenGeometry, geometry)) {
+			geometry.adjust(0, 0, offset.value().x(), offset.value().y());
+			return geometry;
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
+		geometry.setTopRight(pos - QPoint(1, 0));
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
+		if (auto offset = validateWindowGeometry(screenGeometry, geometry)) {
+			geometry.adjust(0, offset.value().y(), offset.value().x(), 0);
+			return geometry;
+		}
+		break;
+	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
+		geometry.setBottomLeft(pos - QPoint(0, 1));
+		if (geometry.width() < minimumSize.width())
+			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
+		if (geometry.height() < minimumSize.height())
+			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
+		if (auto offset = validateWindowGeometry(screenGeometry, geometry)) {
+			geometry.adjust(offset.value().x(), 0, 0, offset.value().y());
+			return geometry;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return winGeometry;
 }
 
 
@@ -297,19 +383,9 @@ void QFreeRdpWindowManager::onStartDragging(WmWidget::DraggingType dragType, QFr
 	}
 }
 
-bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
+bool QFreeRdpWindowManager::handleWindowMove(const QPoint &mousePos)
 {
-	if (!(buttons & Qt::LeftButton)) {
-		qDebug() << "end of dragging";
-		mDraggingType = WmWidget::DRAGGING_NONE;
-		mDraggedWindow = nullptr;
-
-		QCursor moveCursor(Qt::ArrowCursor);
-		mPlatform->cursorHandler()->changeCursor(&moveCursor, nullptr);
-		return true;
-	}
-
-	QPoint delta = (pos - mLastValidMousePos);
+	QPoint delta = (mousePos - mLastValidMousePos);
 
 	auto window = mDraggedWindow->window();
 	QPoint newPosition = window->position() + delta;
@@ -317,14 +393,30 @@ bool QFreeRdpWindowManager::handleWindowMove(const QPoint &pos, Qt::MouseButtons
 
 	if (auto offset = validateWindowGeometry(window->screen()->geometry(), newGeometry)) {
 		window->setPosition(newPosition + offset.value());
-		mLastValidMousePos = pos;
+		mLastValidMousePos = mousePos;
 	}
 	return true;
 }
 
-bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down)
+bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos)
 {
-	if (!(buttons & Qt::LeftButton)) {
+	auto window = mDraggedWindow->window();
+	QMargins margins = mDraggedWindow->frameMargins();
+	QRect outerGeometry = window->geometry() + margins;
+
+	QRect newOuterGeometry = computeWindowResizeGeometry(
+		mousePos, window->screen()->geometry(), outerGeometry, mDraggingType);
+
+	if (newOuterGeometry != outerGeometry)
+		window->setGeometry(newOuterGeometry - margins);
+
+	mLastValidMousePos = mousePos;
+
+	return true;
+}
+
+bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down) {
+	if (mDraggingType != WmWidget::DRAGGING_NONE && !(buttons & Qt::LeftButton)) {
 		qDebug() << "end of resizing";
 		mDraggingType = WmWidget::DRAGGING_NONE;
 		mDraggedWindow = nullptr;
@@ -334,93 +426,9 @@ bool QFreeRdpWindowManager::handleWindowResize(const QPoint &mousePos, Qt::Mouse
 		return true;
 	}
 
-	auto window = mDraggedWindow->window();
-	QMargins margins = mDraggedWindow->frameMargins();
-	QRect geometry = window->geometry() + margins;
-	QPoint pos = mousePos;
-	QSize minimumSize(
-		WM_CORNER_GRAB_SIZE * 2 /* resize anchors */ + 20, /* minimum size for the title / close button / inner window */
-		WM_DECORATION_HEIGHT /* top */ + WM_BORDERS_SIZE /* bottom */ + 5 /*content */
-	);
-
-	switch (mDraggingType) {
-	case WmWidget::DRAGGING_RESIZE_TOP:
-		pos.setX(geometry.x());
-		break;
-	case WmWidget::DRAGGING_RESIZE_BOTTOM:
-		pos.setX(geometry.left() + geometry.width());
-		break;
-	case WmWidget::DRAGGING_RESIZE_LEFT:
-		pos.setY(geometry.y());
-		break;
-	case WmWidget::DRAGGING_RESIZE_RIGHT:
-		pos.setY(geometry.top() + geometry.height());
-		break;
-	default:
-		break;
-	}
-
-	switch (mDraggingType) {
-	case WmWidget::DRAGGING_RESIZE_TOP:
-	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
-	case WmWidget::DRAGGING_RESIZE_LEFT:
-		geometry.setTopLeft(pos);
-		if (geometry.width() < minimumSize.width())
-			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
-		if (geometry.height() < minimumSize.height())
-			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
-		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
-			geometry.adjust(offset.value().x(), offset.value().y(), 0, 0);
-			window->setGeometry(geometry - margins);
-		}
-		break;
-	case WmWidget::DRAGGING_RESIZE_BOTTOM:
-	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
-	case WmWidget::DRAGGING_RESIZE_RIGHT:
-		geometry.setBottomRight(pos);
-		if (geometry.width() < minimumSize.width())
-			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
-		if (geometry.height() < minimumSize.height())
-			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
-		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
-			geometry.adjust(0, 0, offset.value().x(), offset.value().y());
-			window->setGeometry(geometry - margins);
-		}
-		break;
-	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
-		geometry.setTopRight(pos);
-		if (geometry.width() < minimumSize.width())
-			geometry.adjust(0, 0, minimumSize.width() - geometry.width(), 0);
-		if (geometry.height() < minimumSize.height())
-			geometry.adjust(0, geometry.height() - minimumSize.height(), 0, 0);
-		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
-			geometry.adjust(0, offset.value().y(), offset.value().x(), 0);
-			window->setGeometry(geometry - margins);
-		}
-		break;
-	case WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT:
-		geometry.setBottomLeft(pos);
-		if (geometry.width() < minimumSize.width())
-			geometry.adjust(geometry.width() - minimumSize.width(), 0, 0, 0);
-		if (geometry.height() < minimumSize.height())
-			geometry.adjust(0, 0, 0, minimumSize.height() - geometry.height());
-		if (auto offset = validateWindowGeometry(window->screen()->geometry(), geometry)) {
-			geometry.adjust(offset.value().x(), 0, 0, offset.value().y());
-			window->setGeometry(geometry - margins);
-		}
-		break;
-	default:
-		return true;
-	}
-	mLastValidMousePos = mousePos;
-
-	return true;
-}
-
-bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons buttons, Qt::MouseButton button, bool down) {
 	switch(mDraggingType) {
 	case WmWidget::DRAGGING_MOVE:
-		return handleWindowMove(pos, buttons, button, down);
+		return handleWindowMove(pos);
 	case WmWidget::DRAGGING_RESIZE_TOP:
 	case WmWidget::DRAGGING_RESIZE_TOP_LEFT:
 	case WmWidget::DRAGGING_RESIZE_TOP_RIGHT:
@@ -429,7 +437,7 @@ bool QFreeRdpWindowManager::handleMouseEvent(const QPoint &pos, Qt::MouseButtons
 	case WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT:
 	case WmWidget::DRAGGING_RESIZE_LEFT:
 	case WmWidget::DRAGGING_RESIZE_RIGHT:
-		return handleWindowResize(pos, buttons, button, down);
+		return handleWindowResize(pos);
 	case WmWidget::DRAGGING_NONE:
 		break;
 	}
@@ -589,6 +597,89 @@ void QFreeRdpTest::windowManagerTestValidateGeometry() {
 
 	QCOMPARE(validateWindowGeometry(screenGeometry, inputGeometry), offsetResult);
 }
+
+
+void QFreeRdpTest::windowManagerTestWindowResize_data() {
+	QTest::addColumn<QPoint>("mousePos");
+	QTest::addColumn<QRect>("draggedWindowGeometry");
+	QTest::addColumn<WmWidget::DraggingType>("draggingType");
+	QTest::addColumn<QRect>("resultGeometry");
+
+	QSize MIN_SIZE(30, 37);
+
+	// Assuming a 800x600 screen geometry
+
+	QTest::newRow("Nominal: resize top-left no movement")
+		<< QPoint(10, 15)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_TOP_LEFT
+		<< QRect(10, 15, 60, 50);
+
+	QTest::newRow("Resize single side: top")
+		<< QPoint(20, 12)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_TOP
+		<< QRect(10, 12, 60, 53);
+
+	QTest::newRow("Resize single side: bottom")
+		<< QPoint(5, 70)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_BOTTOM
+		<< QRect(10, 15, 60, 55);
+
+	QTest::newRow("Resize single side: left")
+		<< QPoint(20, 80)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_LEFT
+		<< QRect(20, 15, 50, 50);
+
+	QTest::newRow("Resize single side: right")
+		<< QPoint(40, 5)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_RIGHT
+		<< QRect(10, 15, 30, 50);
+
+	QTest::newRow("Resize past minimum size: top-left")
+		<< QPoint(69, 64)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_TOP_LEFT
+		<< QRect(69 - MIN_SIZE.width() + 1, 64 - MIN_SIZE.height() + 1, MIN_SIZE.width(), MIN_SIZE.height());
+
+	QTest::newRow("Resize past minimum size: bottom-right")
+		<< QPoint(11, 16)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT
+		<< QRect(10, 15, MIN_SIZE.width(), MIN_SIZE.height());
+
+	QTest::newRow("Resize past minimum size: top-right")
+		<< QPoint(11, 64)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_TOP_RIGHT
+		<< QRect(10, 64 - MIN_SIZE.height() + 1, MIN_SIZE.width(), MIN_SIZE.height());
+
+	QTest::newRow("Resize past minimum size: bottom-left")
+		<< QPoint(69, 16)
+		<< QRect(10, 15, 60, 50)
+		<< WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT
+		<< QRect(69 - MIN_SIZE.width() + 1, 15, MIN_SIZE.width(), MIN_SIZE.height());
+
+	// TODO: add tests for resizing to the screen borders
+}
+
+void QFreeRdpTest::windowManagerTestWindowResize() {
+	QRect screenGeometry(0, 0, 800, 600);
+
+	QFETCH(QPoint, mousePos);
+	QFETCH(QRect, draggedWindowGeometry);
+	QFETCH(WmWidget::DraggingType, draggingType);
+	QFETCH(QRect, resultGeometry);
+
+	QCOMPARE(
+		computeWindowResizeGeometry(mousePos, screenGeometry, draggedWindowGeometry, draggingType),
+		resultGeometry
+	);
+}
+
 #endif // BUILD_TESTS
 
 QT_END_NAMESPACE
