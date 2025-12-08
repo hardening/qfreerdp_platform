@@ -639,31 +639,71 @@ void QFreeRdpTest::windowManagerTestWindowResize_data() {
 		<< WmWidget::DRAGGING_RESIZE_RIGHT
 		<< QRect(10, 15, 30, 50);
 
+	QPoint bottomRight(70, 65);
+	QPoint topLeft(10, 15);
+	// QRect's weird bottomRight strikes again...
+	QRect inputGeometry(topLeft, bottomRight - QPoint(1, 1));
+
 	QTest::newRow("Resize past minimum size: top-left")
-		<< QPoint(69, 64)
-		<< QRect(10, 15, 60, 50)
+		<< bottomRight - QPoint(1, 1)
+		<< inputGeometry
 		<< WmWidget::DRAGGING_RESIZE_TOP_LEFT
-		<< QRect(69 - MIN_SIZE.width() + 1, 64 - MIN_SIZE.height() + 1, MIN_SIZE.width(), MIN_SIZE.height());
+		<< QRect(QPoint(bottomRight.x() - MIN_SIZE.width(), bottomRight.y() - MIN_SIZE.height()), MIN_SIZE);
 
 	QTest::newRow("Resize past minimum size: bottom-right")
-		<< QPoint(11, 16)
-		<< QRect(10, 15, 60, 50)
+		<< topLeft + QPoint(1, 1)
+		<< inputGeometry
 		<< WmWidget::DRAGGING_RESIZE_BOTTOM_RIGHT
-		<< QRect(10, 15, MIN_SIZE.width(), MIN_SIZE.height());
+		<< QRect(topLeft, MIN_SIZE);
 
 	QTest::newRow("Resize past minimum size: top-right")
-		<< QPoint(11, 64)
-		<< QRect(10, 15, 60, 50)
+		<< QPoint(topLeft.x() + 1, bottomRight.y() - 1)
+		<< inputGeometry
 		<< WmWidget::DRAGGING_RESIZE_TOP_RIGHT
-		<< QRect(10, 64 - MIN_SIZE.height() + 1, MIN_SIZE.width(), MIN_SIZE.height());
+		<< QRect(QPoint(topLeft.x(), bottomRight.y() - MIN_SIZE.height()), MIN_SIZE);
 
 	QTest::newRow("Resize past minimum size: bottom-left")
-		<< QPoint(69, 16)
-		<< QRect(10, 15, 60, 50)
+		<< QPoint(bottomRight.x() - 1, topLeft.y() + 1)
+		<< inputGeometry
 		<< WmWidget::DRAGGING_RESIZE_BOTTOM_LEFT
-		<< QRect(69 - MIN_SIZE.width() + 1, 15, MIN_SIZE.width(), MIN_SIZE.height());
+		<< QRect(QPoint(bottomRight.x() - MIN_SIZE.width(), topLeft.y()), MIN_SIZE);
 
-	// TODO: add tests for resizing to the screen borders
+
+	QTest::newRow("window disappearing to the left")
+		<< QPoint(0, 50)
+		<< QRect(-50, 10, 100, 40)
+		<< WmWidget::DRAGGING_RESIZE_RIGHT
+		<< QRect(-50, 10, 50 + 10, 40);
+
+	QTest::newRow("window disappearing to the right")
+		<< QPoint(800, 50)
+		<< QRect(750, 10, 100, 50)
+		<< WmWidget::DRAGGING_RESIZE_LEFT
+		<< QRect(800 - 5, 10, 100 - 50 + 5, 50);
+
+	QTest::newRow("window bumping the top of the screen")
+		<< QPoint(50, -5)  // Negative mouse coords should not happen in the real world
+		<< QRect(20, 50, 100, 40)
+		<< WmWidget::DRAGGING_RESIZE_TOP
+		<< QRect(20, 0, 100, 90);
+
+	QTest::newRow("window disappearing to the bottom + left resize")
+		<< QPoint(50, 600)
+		<< QRect(20, 550, 90, 100)
+		<< WmWidget::DRAGGING_RESIZE_TOP_LEFT
+		<< QRect(50, 600 - WM_DECORATION_HEIGHT, 90 - 30, 100 - 50 + WM_DECORATION_HEIGHT);
+
+	QTest::newRow("window disappeared to the bottom-left")
+		<< QPoint(0, 600)
+		<< QRect(-100, 550, 200, 100)
+		<< WmWidget::DRAGGING_RESIZE_TOP_RIGHT
+		<< QRect(-100, 600 - WM_DECORATION_HEIGHT, 100 + 10, 50 + WM_DECORATION_HEIGHT);
+
+	QTest::newRow("window disappeared to the bottom-right")
+		<< QPoint(800, 600)
+		<< QRect(750, 550, 200, 100)
+		<< WmWidget::DRAGGING_RESIZE_TOP_LEFT
+		<< QRect(800 - 5, 600 - WM_DECORATION_HEIGHT, 200 - 50 + 5, 100 - 50 + WM_DECORATION_HEIGHT);
 }
 
 void QFreeRdpTest::windowManagerTestWindowResize() {
