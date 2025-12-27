@@ -73,3 +73,29 @@ qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
     install: true,
     install_dir: target_install_dir
 )
+
+test_moc_files = qt_mod.compile_moc(
+    headers : 'tests/qfreerdptestharness.h',
+    include_directories: [private_dirs],
+    dependencies: [qt_deps]
+)
+
+test('qfreerdp_test',
+    executable('qfreerdp_test',
+        'tests/testmain.cpp',
+        sources,
+        moc_files,
+        test_moc_files,
+        resources_files,
+        dependencies: [
+            qt_deps,
+            glib_deps,
+            freerdp3_deps,
+            xkbcommon_deps,
+            xcursor_deps
+        ],
+        link_with: libwmwidgets,
+        include_directories: ['../../..', private_dirs, 'tests'],
+        cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE', '-DBUILD_TESTS']
+    )
+)

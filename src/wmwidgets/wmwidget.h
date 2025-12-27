@@ -87,9 +87,6 @@ public:
 	virtual void handleChildDirty(WmWidget* child, const QRegion &dirty);
 	/** @} */
 
-signals:
-	void startDrag(WmWidget::DraggingType draggingType);
-
 protected:
 	WmWidget *mParent;
 	QPoint mPos;

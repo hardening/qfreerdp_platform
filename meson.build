@@ -19,7 +19,7 @@ endif
 
 qt_mod = import(qt_ver)
 
-qt_modules = ['Core', 'Gui', 'Widgets', 'DBus']
+qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Test']
 if qt_ver == 'qt5'
     qt_modules += ['FontDatabaseSupport', 'EventDispatcherSupport', 'ThemeSupport']
 endif
