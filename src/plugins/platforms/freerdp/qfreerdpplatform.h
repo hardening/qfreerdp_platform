@@ -30,6 +30,7 @@
 
 #include <freerdp/listener.h>
 #include <freerdp/pointer.h>
+#include <freerdp/channels/disp.h>
 
 #include <wmwidgets/wmwidget.h>
 
@@ -84,6 +85,7 @@ struct QFreeRdpPlatformConfig {
 	int fps;
 	bool clipboard_enabled;
 	bool egfx_enabled;
+	bool resize_enabled;
 	bool qtwebengine_compat;
 	char *secrets_file;
 
@@ -133,10 +135,6 @@ public:
 #endif
     /** @} */
 
-
-	/** @return the main screen */
-	QFreeRdpScreen *getScreen() { return mScreen; }
-
 	/** @return clipboard */
 	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
 
@@ -180,6 +178,13 @@ public:
 	QFreeRdpCursor *cursorHandler() const;
 	const QFreeRdpPlatformConfig *config() const { return mConfig; }
 
+	const QRegion &monitorsRegion() const;
+	const QList<QFreeRdpScreen *> monitors() const;
+	QImage *getDesktopBits() { return mDesktopImage; }
+	const QList<QFreeRdpScreen *> getScreens() const { return mScreens; }
+	bool updateMonitors(const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *layout, bool *sizeChanged);
+	QScreen *screenForWindow(const QWindow *window) const;
+
 protected:
 	bool loadResources();
 
@@ -191,7 +196,9 @@ protected:
     QFreeRdpClipboard *mClipboard;
 
     QFreeRdpPlatformConfig *mConfig;
-    QFreeRdpScreen *mScreen;
+    QList<QFreeRdpScreen *> mScreens;
+    QRegion mAllMonitorsRegion;
+    QImage *mDesktopImage;
     QFreeRdpCursor *mCursor;
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;

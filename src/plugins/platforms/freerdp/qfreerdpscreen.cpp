@@ -32,22 +32,25 @@
 
 QT_BEGIN_NAMESPACE
 
-QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height)
-: mPlatform(platform)
+QFreeRdpScreen::QFreeRdpScreen(QFreeRdpPlatform *platform, const QRect &geom, const QRect &rdpGeom)
+: mGeometry(geom)
+, mRdpGeometry(rdpGeom)
+, mPlatform(platform)
 {
-	qDebug("QFreeRdpScreen::%s(%d x %d)", __func__, width, height);
-    mGeometry = QRect(0, 0, width, height);
-    mScreenBits = new QImage(width, height, QImage::Format_ARGB32_Premultiplied);
-    mScreenBits->fill(Qt::black);
+	QSize sz = geom.size();
+	qDebug("QFreeRdpScreen::%s(%d x %d)", __func__, sz.width(), sz.height());
 }
 
 QFreeRdpScreen::~QFreeRdpScreen() {
 	qDebug() << "QFreeRdpScreen::" << __func__ << "()";
-	delete mScreenBits;
 }
 
 QRect QFreeRdpScreen::geometry() const {
     return mGeometry;
+}
+
+QRect QFreeRdpScreen::rdpGeometry() const {
+	return mRdpGeometry;
 }
 
 int QFreeRdpScreen::depth() const {
@@ -73,10 +76,7 @@ void QFreeRdpScreen::setGeometry(const QRect &geometry) {
 	if(geometry == mGeometry)
 		return;
 
-	delete mScreenBits;
 	mGeometry = geometry;
-    mScreenBits = new QImage(geometry.width(), geometry.height(), QImage::Format_ARGB32_Premultiplied);
-    mScreenBits->fill(Qt::green);
 
     QWindowSystemInterface::handleScreenGeometryChange(screen(), mGeometry, mGeometry);
 	resizeMaximizedWindows();
@@ -84,5 +84,15 @@ void QFreeRdpScreen::setGeometry(const QRect &geometry) {
     mPlatform->mWindowManager->pushDirtyArea(mGeometry);
 }
 
+void QFreeRdpScreen::setRdpGeometry(const QRect &rdpGeometry)
+{
+	mRdpGeometry = rdpGeometry;
+}
+
+void QFreeRdpScreen::setFullGeometry(const QRect &geometry, const QRect &rdpGeometry)
+{
+	mRdpGeometry = rdpGeometry;
+	setGeometry(geometry);
+}
 
 QT_END_NAMESPACE

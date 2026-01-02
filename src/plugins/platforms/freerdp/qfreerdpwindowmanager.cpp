@@ -34,6 +34,7 @@
 #include <QDebug>
 
 #include <assert.h>
+#include <optional>
 
 QT_BEGIN_NAMESPACE
 
@@ -273,9 +274,8 @@ void QFreeRdpWindowManager::pushDirtyArea(const QRegion &region) {
 }
 
 void QFreeRdpWindowManager::repaint(const QRegion &region) {
-	QFreeRdpScreen *screen = mPlatform->getScreen();
-	QImage *dest = screen->getScreenBits();
-	QRect screenGeometry = screen->geometry();
+	QImage *dest = mPlatform->getDesktopBits();
+	QRect screenGeometry = mPlatform->monitorsRegion().boundingRect();
 
 	QRegion toRepaint = region.intersected(screenGeometry); // clip to screen size
 	if(toRepaint.isEmpty())

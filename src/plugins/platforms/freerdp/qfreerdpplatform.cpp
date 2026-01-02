@@ -75,6 +75,7 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	fps(24),
 	clipboard_enabled(true),
 	egfx_enabled(true),
+	resize_enabled(true),
 	qtwebengine_compat(false),
 	secrets_file(nullptr),
 	screenSz(800, 600),
@@ -167,6 +168,9 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param == "noclipboard") {
 			qDebug("disabling clipboard");
 			clipboard_enabled = false;
+		} else if(param == "noresize") {
+			qDebug("disabling dynamic resize");
+			resize_enabled = false;
 		} else if(param.startsWith(QLatin1String("mode="))) {
 			subVal = param.mid(strlen("mode="));
 			QString mode = subVal;
@@ -205,7 +209,8 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& par
 , mNativeInterface(new QPlatformNativeInterface())
 , mClipboard(new QFreeRdpClipboard())
 , mConfig(new QFreeRdpPlatformConfig(paramList))
-, mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
+, mAllMonitorsRegion(QRect(QPoint(0, 0), QSize(mConfig->screenSz.width(), mConfig->screenSz.height())))
+, mDesktopImage(new QImage(mConfig->screenSz, QImage::Format_ARGB32_Premultiplied))
 , mCursor(new QFreeRdpCursor(this))
 , mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
@@ -214,7 +219,11 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& par
 {
 	//Disable desktop settings for now (or themes crash)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
-	QWindowSystemInterface::handleScreenAdded(mScreen);
+
+	QRect screenGeom(QPoint(0, 0), mConfig->screenSz);
+	QFreeRdpScreen *mainScreen = new QFreeRdpScreen(this, screenGeom, screenGeom);
+	mScreens.push_back(mainScreen);
+	QWindowSystemInterface::handleScreenAdded(mainScreen);
 
 	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
@@ -233,6 +242,7 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 		delete peer;
 	}
 
+	delete mDesktopImage;
 	delete mListener;
 	delete mCursor;
 	delete mConfig;
@@ -240,7 +250,9 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mNativeInterface;
 	delete mFontDb;
 	delete mWindowManager;
-	QWindowSystemInterface::handleScreenRemoved(mScreen->screen()->handle());
+
+	for(auto screen: mScreens)
+		QWindowSystemInterface::handleScreenRemoved(screen->screen()->handle());
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
@@ -287,6 +299,8 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 	switch (cap) {
 	case ThreadedPixmaps:
 		return true;
+	case MaximizeUsingFullscreenGeometry:
+		return true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
 	case RhiBasedRendering:
 		return false;
@@ -299,6 +313,116 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
 	return mNativeInterface;
 }
+
+const QRegion &QFreeRdpPlatform::monitorsRegion() const {
+	return mAllMonitorsRegion;
+}
+
+const QList<QFreeRdpScreen *> QFreeRdpPlatform::monitors() const {
+	return mScreens;
+}
+
+QScreen *QFreeRdpPlatform::screenForWindow(const QWindow *window) const
+{
+	QPoint pos = window->position();
+	for(auto screen: mScreens) {
+		if (screen->geometry().contains(pos))
+			return screen->screen();
+	}
+	return nullptr;
+}
+
+bool QFreeRdpPlatform::updateMonitors(const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *layout, bool *sizeChanged)
+{
+	UINT32 i;
+
+	mAllMonitorsRegion = QRegion();
+	QScreen *oldPrimary = QGuiApplication::primaryScreen();
+	QScreen *actualPrimary = nullptr;
+
+	/* compute freerdp origin */
+	QPoint newOrigin(0, 0);
+	for (i = 0; i < layout->NumMonitors; i++) {
+		DISPLAY_CONTROL_MONITOR_LAYOUT *updatedMon = &layout->Monitors[i];
+		if (updatedMon->Left < newOrigin.x())
+			newOrigin.setX(updatedMon->Left);
+
+		if (updatedMon->Top < newOrigin.y())
+			newOrigin.setY(updatedMon->Top);
+	}
+
+	/* modified monitors */
+	for (i = 0; i < layout->NumMonitors && i < (UINT32)mScreens.size(); i++)
+	{
+		DISPLAY_CONTROL_MONITOR_LAYOUT *updatedMon = &layout->Monitors[i];
+		QFreeRdpScreen *actualMon = mScreens.at(i);
+		if (updatedMon->Flags & DISPLAY_CONTROL_MONITOR_PRIMARY)
+			actualPrimary = actualMon->screen();
+
+		QRect rdpGeom(QPoint(updatedMon->Left, updatedMon->Top), QSize(updatedMon->Width, updatedMon->Height));
+		QRect geom( rdpGeom.translated(-newOrigin) );
+		if (actualMon->geometry() != geom) {
+			qDebug() << "geometry changed for screen" << i << "from" << actualMon->geometry()
+						   << "to" << geom;
+			actualMon->setGeometry(geom);
+		}
+		if (actualMon->rdpGeometry() != rdpGeom) {
+			qDebug() << "rdp geometry also changed for screen" << i;
+			actualMon->setRdpGeometry(rdpGeom);
+		}
+
+		actualMon->resizeMaximizedWindows();
+
+		mAllMonitorsRegion += geom;
+	}
+
+	/* added monitors */
+	for ( ; i < layout->NumMonitors; i++)
+	{
+		DISPLAY_CONTROL_MONITOR_LAYOUT *addedMon = &layout->Monitors[i];
+		QRect freerdpGeom(QPoint(addedMon->Left, addedMon->Top), QSize(addedMon->Width, addedMon->Height));
+		QRect geom( freerdpGeom.translated(-newOrigin) );
+		QFreeRdpScreen *screen = new QFreeRdpScreen(this, geom, freerdpGeom);
+		mScreens.push_back(screen);
+
+		QWindowSystemInterface::handleScreenAdded(screen, false);
+		QWindowSystemInterface::handleScreenGeometryChange(screen->screen(), geom, geom);
+
+		qDebug() << "added screen" << geom;
+		mAllMonitorsRegion += geom;
+	}
+
+	/* removed monitors */
+	int screensToRemove = 0;
+	for ( ; i < (UINT32)mScreens.size(); i++, screensToRemove++)
+	{
+		qDebug() << "dropped screen" << i;
+
+		QFreeRdpScreen *screen = mScreens.at(i);
+		QWindowSystemInterface::handleScreenRemoved(screen->screen()->handle());
+	}
+
+	for (i = 0; i < (UINT32)screensToRemove; i++)
+		mScreens.removeLast();
+	QRect allMonitorsRect = mAllMonitorsRegion.boundingRect();
+
+	if (actualPrimary != oldPrimary && actualPrimary)
+		QWindowSystemInterface::handlePrimaryScreenChanged(actualPrimary->handle());
+
+	*sizeChanged = (allMonitorsRect.size() != mDesktopImage->size());
+	if (*sizeChanged) {
+		qDebug() << "updating desktopImage to" << allMonitorsRect.size();
+
+		delete mDesktopImage;
+		mDesktopImage = new QImage(allMonitorsRect.size(), QImage::Format_ARGB32_Premultiplied);
+		mDesktopImage->fill(Qt::black);
+
+	}
+	mWindowManager->pushDirtyArea(mAllMonitorsRegion);
+	return true;
+}
+
+
 
 void QFreeRdpPlatform::initialize() {
 	if (mConfig->fixed_socket != -1) {

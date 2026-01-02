@@ -127,18 +127,17 @@ QFreeRdpPeer::QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client) :
 		mLastButtons(Qt::NoButton),
 		mCurrentButton(Qt::NoButton),
 		mKeyboard(platform->mConfig),
+		mFirstFrame(true),
 		mSurfaceOutputModeEnabled(false),
 		mNsCodecSupported(false),
-		mCompositor(platform->getScreen()),
+		mCompositor(platform),
 		mRenderMode(RENDER_BITMAP_UPDATES),
 		mVcm(nullptr),
 		mClipboard(nullptr),
-		mRdpgfx(nullptr),
-		mGfxOpened(false),
-		mSurfaceCreated(false),
-		mSurfaceId(1),
 		mFrameId(0)
-{}
+{
+	connect(this, &QFreeRdpPeer::updatedMonitors, this, &QFreeRdpPeer::onUpdatedMonitors);
+}
 
 void QFreeRdpPeer::dropSocketNotifier(QSocketNotifier *notifier) {
 	if(notifier) {
@@ -154,13 +153,20 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	dropSocketNotifier(peerCtx->event);
 	dropSocketNotifier(peerCtx->channelEvent);
 
-	if (mRdpgfx) {
-		rdpgfx_server_context_free(mRdpgfx);
-		mRdpgfx = nullptr;
+	if (mEgfx.rdpgfx) {
+		mEgfx.rdpgfx->Close(mEgfx.rdpgfx);
+		rdpgfx_server_context_free(mEgfx.rdpgfx);
+		mEgfx.rdpgfx = nullptr;
 	}
 
 	if (mClipboard)
 		delete mClipboard;
+
+	if (mDisplay.channel) {
+		mDisplay.channel->Close(mDisplay.channel);
+		disp_server_context_free(mDisplay.channel);
+		mDisplay.channel = nullptr;
+	}
 
 	if (mVcm)
 		WTSCloseServer(mVcm);
@@ -172,6 +178,27 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 	freerdp_peer_free(mClient);
 	mPlatform->unregisterPeer(this);
 }
+
+QFreeRdpPeer::EgfxSurface::EgfxSurface(UINT16 pSurfaceId, const QRect &pRdpGeom)
+: surfaceId(pSurfaceId)
+, rdpGeom(pRdpGeom)
+{
+}
+
+QFreeRdpPeer::EgfxState::EgfxState()
+: opened(false)
+, rdpgfx(nullptr)
+, surfaceCounter(1)
+{
+}
+
+QFreeRdpPeer::DispState::DispState()
+: opened(false)
+, channel(nullptr)
+, channelId(0xFFFFFFFF)
+{
+}
+
 
 BOOL QFreeRdpPeer::xf_mouseEvent(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y) {
 	RdpPeerContext *peerContext = (RdpPeerContext *)input->context;
@@ -284,6 +311,64 @@ BOOL QFreeRdpPeer::xf_surface_frame_acknowledge(rdpContext* context, UINT32 fram
 	QFreeRdpPeer *rdpPeer = peerContext->rdpPeer;
 
 	return rdpPeer->frameAck(frameId);
+}
+
+BOOL QFreeRdpPeer::dynvc_dynChannelCreationStatus(void* userdata, UINT32 channelId, INT32 creationStatus) {
+	QFreeRdpPeer *peer = (QFreeRdpPeer *)userdata;
+
+	if (peer->mDisplay.channel && (channelId == peer->mDisplay.channelId)) {
+		if (creationStatus == ERROR_SUCCESS) {
+			if (peer->mDisplay.channel->DisplayControlCaps(peer->mDisplay.channel) != CHANNEL_RC_OK) {
+				   qDebug("error sending display capabilities");
+			}
+		}
+	}
+	return TRUE;
+}
+
+BOOL QFreeRdpPeer::display_channelIdAssigned(DispServerContext* context, UINT32 channelId) {
+	QFreeRdpPeer *peer = (QFreeRdpPeer *)context->custom;
+	peer->mDisplay.channelId = channelId;
+	return TRUE;
+}
+
+DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *DISPLAY_CONTROL_MONITOR_LAYOUT_PDU_dup(const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu) {
+	DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *ret = (DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *)calloc(1, sizeof(*ret) + pdu->NumMonitors * sizeof(*pdu->Monitors));
+	if (!ret)
+		return nullptr;
+
+	ret->NumMonitors = pdu->NumMonitors;
+	ret->Monitors = (DISPLAY_CONTROL_MONITOR_LAYOUT*)(ret + 1);
+	memcpy(ret->Monitors, pdu->Monitors, pdu->NumMonitors * sizeof(*pdu->Monitors));
+	return ret;
+}
+
+UINT QFreeRdpPeer::display_monitorLayout(DispServerContext* context, const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu)
+{
+	QFreeRdpPeer *peer = (QFreeRdpPeer *)context->custom;
+	qDebug("display layout updated");
+
+	DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *copy = DISPLAY_CONTROL_MONITOR_LAYOUT_PDU_dup(pdu);
+	if (!copy)
+		return CHANNEL_RC_NO_MEMORY;
+	emit peer->updatedMonitors(copy);
+
+	return CHANNEL_RC_OK;
+}
+
+void QFreeRdpPeer::onUpdatedMonitors(DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu)
+{
+	bool resized;
+	if (!mPlatform->updateMonitors(pdu, &resized) || !initGfxDisplay())
+		goto out;
+
+	if (resized) {
+		auto displaySize = mPlatform->monitorsRegion().boundingRect().size();
+		mCompositor.reset(displaySize);
+	}
+
+out:
+	free(pdu);
 }
 
 UINT QFreeRdpPeer::rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise) {
@@ -427,7 +512,7 @@ bool QFreeRdpPeer::initializeChannels()
 
 	if (config->clipboard_enabled && WTSVirtualChannelManagerIsChannelJoined(mVcm, CLIPRDR_SVC_CHANNEL_NAME))
 	{
-		qDebug() << "instanciating clipboard component";
+		qDebug() << "instantiating clipboard component";
 
 		mClipboard = new QFreerdpPeerClipboard(this, mVcm);
 		if (!mClipboard->start()) {
@@ -438,27 +523,28 @@ bool QFreeRdpPeer::initializeChannels()
 	}
 
 	/* =============== egfx =================*/
-	if (mRdpgfx) {
-		rdpgfx_server_context_free(mRdpgfx);
-		mRdpgfx = nullptr;
-		mSurfaceCreated = false;
+	if (mEgfx.rdpgfx) {
+		rdpgfx_server_context_free(mEgfx.rdpgfx);
+		mEgfx.rdpgfx = nullptr;
 	}
 
 	if (WTSVirtualChannelManagerIsChannelJoined(mVcm, DRDYNVC_SVC_CHANNEL_NAME))
 	{
 		auto settings = mClient->context->settings;
+		WTSVirtualChannelManagerSetDVCCreationCallback(mVcm, dynvc_dynChannelCreationStatus, this);
+
 		if (settings->SupportGraphicsPipeline && config->egfx_enabled) {
-			qDebug() << "instanciating EGFX component";
-			mRdpgfx = rdpgfx_server_context_new(mVcm);
-			if (!mRdpgfx) {
-				qDebug() << "error instanciating egfx";
+			qDebug() << "instantiating EGFX component";
+			mEgfx.rdpgfx = rdpgfx_server_context_new(mVcm);
+			if (!mEgfx.rdpgfx) {
+				qDebug() << "error instantiating egfx";
 				return false;
 			}
 
-			mRdpgfx->rdpcontext = mClient->context;
-			mRdpgfx->custom = this;
-			mRdpgfx->CapsAdvertise = rdpgfx_caps_advertise;
-			mRdpgfx->FrameAcknowledge = rdpgfx_frame_acknowledge;
+			mEgfx.rdpgfx->rdpcontext = mClient->context;
+			mEgfx.rdpgfx->custom = this;
+			mEgfx.rdpgfx->CapsAdvertise = rdpgfx_caps_advertise;
+			mEgfx.rdpgfx->FrameAcknowledge = rdpgfx_frame_acknowledge;
 
 			mFlags.setFlag(PEER_WAITING_DYNVC, true);
 			mFlags.setFlag(PEER_WAITING_GRAPHICS, true);
@@ -466,13 +552,30 @@ bool QFreeRdpPeer::initializeChannels()
 			qDebug() << "no support for EGFX";
 		}
 
+		if (config->resize_enabled) {
+			mDisplay.channel = disp_server_context_new(mVcm);
+			if (!mDisplay.channel) {
+				qDebug() << "error instantiating display channel";
+				return false;
+			}
+
+			mDisplay.channel->custom = this;
+			mDisplay.channel->ChannelIdAssigned = display_channelIdAssigned;
+			mDisplay.channel->DispMonitorLayout = display_monitorLayout;
+			mDisplay.channel->MaxNumMonitors = 4;
+			mDisplay.channel->MaxMonitorAreaFactorA = 2048;
+			mDisplay.channel->MaxMonitorAreaFactorB = 2048;
+			mFlags.setFlag(PEER_WAITING_DYNVC, true);
+		} else {
+			qDebug() << "no support for Display resize";
+		}
+
 		// note: this will cause the dynamic channel to be started
 		if ((mFlags & PEER_WAITING_DYNVC) && !WTSVirtualChannelManagerOpen(mVcm))
 			return false;
 	}
 
-	init_display(mClient);
-	return true;
+	return init_display(mClient);
 }
 
 bool QFreeRdpPeer::frameAck(UINT32 frameId) {
@@ -488,7 +591,7 @@ bool QFreeRdpPeer::egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise
 			RDPGFX_CAPS_CONFIRM_PDU pdu = { &caps };
 
 			caps.flags |= RDPGFX_CAPS_FLAG_AVC_DISABLED; /* no encoding at all */
-			rc = mRdpgfx->CapsConfirm(mRdpgfx, &pdu);
+			rc = mEgfx.rdpgfx->CapsConfirm(mEgfx.rdpgfx, &pdu);
 			return true;
 		}
 	}
@@ -497,61 +600,128 @@ bool QFreeRdpPeer::egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise
 }
 
 bool QFreeRdpPeer::initGfxDisplay() {
-	auto settings = mClient->context->settings;
-	MONITOR_DEF monitor = { 0, 0,
-			(INT32)settings->DesktopWidth-1, (INT32)settings->DesktopHeight-1,
-			MONITOR_PRIMARY
-	};
-	RDPGFX_RESET_GRAPHICS_PDU pdu = { settings->DesktopWidth, settings->DesktopHeight,
-			1, &monitor
+	const QList<QFreeRdpScreen *> screens = mPlatform->getScreens();
+	const QRegion &allMonitors = mPlatform->monitorsRegion();
+	QRect allGeometry = allMonitors.boundingRect();
+
+	auto primaryScreen = QGuiApplication::primaryScreen()->handle();
+	MONITOR_DEF monitors[16];
+	for (auto i = 0; i < qMin(screens.size(), 16); i++) {
+		auto screen = screens.at(i);
+		QRect rdpGeom = screen->rdpGeometry();
+		MONITOR_DEF monitor = {
+			rdpGeom.left(), rdpGeom.top(), rdpGeom.right(), rdpGeom.bottom(),
+			static_cast<UINT32>((primaryScreen  == screen) ? MONITOR_PRIMARY : 0)
+		};
+		monitors[i] = monitor;
+	}
+
+	RDPGFX_RESET_GRAPHICS_PDU pdu = {
+		(UINT32)allGeometry.width(), (UINT32)allGeometry.height(),
+		(UINT32)screens.size(), monitors
 	};
 
-	if (mRdpgfx->ResetGraphics(mRdpgfx, &pdu) != CHANNEL_RC_OK) {
+	if (mEgfx.rdpgfx->ResetGraphics(mEgfx.rdpgfx, &pdu) != CHANNEL_RC_OK) {
 		qDebug("error resetting graphics");
 		return false;
 	}
 
-	RDPGFX_CREATE_SURFACE_PDU createSurface = { mSurfaceId,
-			(UINT16)settings->DesktopWidth, (UINT16)settings->DesktopHeight,
+	for (int i = 0; i < qMin(screens.size(), 16); i++) {
+		QFreeRdpScreen *freerdpScreen = screens.at(i);
+		QScreen *screen = freerdpScreen->screen();
+		QRect geom = screen->geometry();
+
+		if (i <= mEgfx.surfaces.size()-1) {
+			const EgfxSurface &surface = mEgfx.surfaces.at(i);
+			RDPGFX_DELETE_SURFACE_PDU deleteSurface = { surface.surfaceId };
+			if (mEgfx.rdpgfx->DeleteSurface(mEgfx.rdpgfx, &deleteSurface) != CHANNEL_RC_OK) {
+				qDebug("error deleting surface %d", surface.surfaceId);
+				return false;
+			}
+		} else {
+			qDebug("creating surface %d", mEgfx.surfaceCounter);
+			mEgfx.surfaces.push_back(EgfxSurface(mEgfx.surfaceCounter++, freerdpScreen->rdpGeometry()));
+		}
+
+		EgfxSurface &surface = mEgfx.surfaces[i];
+		RDPGFX_CREATE_SURFACE_PDU createSurface = {
+			surface.surfaceId,
+			(UINT16)geom.width(), (UINT16)geom.height(),
 			GFX_PIXEL_FORMAT_XRGB_8888
-	};
-	if (mRdpgfx->CreateSurface(mRdpgfx, &createSurface) != CHANNEL_RC_OK) {
-		qDebug("error creating surface");
-		return false;
-	}
+		};
 
-	RDPGFX_MAP_SURFACE_TO_OUTPUT_PDU surfaceToOutput = { mSurfaceId, 0, 0, 0 };
-	if (mRdpgfx->MapSurfaceToOutput(mRdpgfx, &surfaceToOutput) != CHANNEL_RC_OK) {
-		qDebug("error mapping surface to output");
-		return false;
-	}
+		if (mEgfx.rdpgfx->CreateSurface(mEgfx.rdpgfx, &createSurface) != CHANNEL_RC_OK) {
+			qDebug("error creating surface %d", surface.surfaceId);
+			return false;
+		}
 
-	mSurfaceCreated = true;
+		RDPGFX_MAP_SURFACE_TO_OUTPUT_PDU surfaceToOutput = {
+			surface.surfaceId, 0,
+			(UINT32)(geom.left() - allGeometry.left()), (UINT32)(geom.top() - allGeometry.top())
+		};
+		if (mEgfx.rdpgfx->MapSurfaceToOutput(mEgfx.rdpgfx, &surfaceToOutput) != CHANNEL_RC_OK) {
+			qDebug("error mapping surface to output");
+			return false;
+		}
+	}
 	return true;
 }
 
+static void settingsMonitors_to_layout(rdpSettings* settings, DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *layout) {
+	layout->NumMonitors = qMin(qMax((UINT32)1, settings->MonitorCount), layout->MonitorLayoutSize);
 
-void QFreeRdpPeer::init_display(freerdp_peer* client) {
-	// get context
-	RdpPeerContext *ctx = (RdpPeerContext *)client->context;
-	QFreeRdpPeer *rdpPeer = ctx->rdpPeer;
+	if (settings->MonitorCount) {
+		for (UINT32 i = 0; i < settings->MonitorCount; i++) {
+			rdpMonitor *m = &settings->MonitorDefArray[i];
+			DISPLAY_CONTROL_MONITOR_LAYOUT *monitor = &layout->Monitors[i];
+			monitor->Flags = m->is_primary ? DISPLAY_CONTROL_MONITOR_PRIMARY : 0;
+			monitor->Left = m->x;
+			monitor->Top = m->y;
+			monitor->Width = (UINT32)m->width;
+			monitor->Height = (UINT32)m->height;
+			monitor->PhysicalWidth = (UINT32)m->attributes.physicalWidth;
+			monitor->PhysicalHeight = (UINT32)m->attributes.physicalHeight;
+			monitor->DesktopScaleFactor = m->attributes.desktopScaleFactor;
+			monitor->DeviceScaleFactor = m->attributes.deviceScaleFactor;
+		}
+	} else {
+		DISPLAY_CONTROL_MONITOR_LAYOUT *monitor = &layout->Monitors[0];
+		monitor->Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
+		monitor->Left = 0;
+		monitor->Top = 0;
+		monitor->Width = settings->DesktopWidth;
+		monitor->Height = settings->DesktopHeight;
+		monitor->PhysicalWidth = settings->DesktopPhysicalWidth;
+		monitor->PhysicalHeight = settings->DesktopPhysicalHeight;
+		monitor->DesktopScaleFactor = settings->DesktopScaleFactor;
+		monitor->DeviceScaleFactor = settings->DeviceScaleFactor;
+	}
+}
+
+bool QFreeRdpPeer::init_display(freerdp_peer* client) {
 	rdpSettings* settings = client->context->settings;
+	bool resized;
 
-	// set screen geometry
-	QFreeRdpScreen *screen = rdpPeer->mPlatform->getScreen();
-	//TODO: see the user's monitor layout
-	QRect currentGeometry = screen->geometry();
+	DISPLAY_CONTROL_MONITOR_LAYOUT monitors[16] = { 0 };
+	DISPLAY_CONTROL_MONITOR_LAYOUT_PDU monitorLayout = { 16, 0, monitors };
+	settingsMonitors_to_layout(settings, &monitorLayout);
 
-	mCompositor.reset(settings->DesktopWidth, settings->DesktopHeight);
+	if (!mPlatform->updateMonitors(&monitorLayout, &resized))
+		return false;
 
-	QRect peerGeometry(0, 0, settings->DesktopWidth, settings->DesktopHeight);
-	if(currentGeometry != peerGeometry)
-		screen->setGeometry(peerGeometry);
+	QSize imgSize = mPlatform->monitorsRegion().boundingRect().size();
+	QSize settingsSize(settings->DesktopWidth, settings->DesktopHeight);
+	if (imgSize != settingsSize) {
+		qDebug("case with settingsSize != allMonitorsSize not handled yet");
+		return false;
+	}
+
+	mCompositor.reset(settingsSize);
 
 	// default : show mouse
 	POINTER_SYSTEM_UPDATE pointer_system;
 	pointer_system.type = SYSPTR_DEFAULT;
-	client->context->update->pointer->PointerSystem(client->context, &pointer_system);
+	return client->context->update->pointer->PointerSystem(client->context, &pointer_system);
 }
 
 
@@ -592,7 +762,8 @@ bool QFreeRdpPeer::init() {
 	input->KeyboardEvent = QFreeRdpPeer::xf_input_keyboard_event;
 	input->UnicodeKeyboardEvent = QFreeRdpPeer::xf_input_unicode_keyboard_event;
 
-	mClient->Initialize(mClient);
+	if (!mClient->Initialize(mClient))
+		return false;
 
 	mVcm = WTSOpenServerA((LPSTR)mClient->context);
 	if (!mVcm) {
@@ -632,21 +803,39 @@ void QFreeRdpPeer::checkDrdynvcState() {
 		qDebug("drdynvc not ready");
 		break;
 	case DRDYNVC_STATE_READY:
-		if (mFlags.testFlag(PEER_WAITING_DYNVC) && mRdpgfx && !mGfxOpened)	{
-			qDebug("drdynvc ready, opening GraphicsPipeline");
-			if (!mRdpgfx->Open(mRdpgfx))
-			{
-				qDebug("Failed to open GraphicsPipeline");
-				mClient->context->settings->SupportGraphicsPipeline = FALSE;
-				mRenderMode = RENDER_BITMAP_UPDATES;
+		if (mFlags.testFlag(PEER_WAITING_DYNVC)) {
+			auto context = mClient->context;
+			/* EGFX */
+			if (mEgfx.rdpgfx && !mEgfx.opened)	{
+				qDebug("drdynvc ready, opening GraphicsPipeline");
+				if (!mEgfx.rdpgfx->Open(mEgfx.rdpgfx))
+				{
+					qDebug("Failed to open GraphicsPipeline");
+					context->settings->SupportGraphicsPipeline = FALSE;
+					mRenderMode = RENDER_BITMAP_UPDATES;
+				}
+				else
+				{
+					qDebug("Gfx Pipeline Opened");
+					mEgfx.opened = true;
+					mRenderMode = RENDER_EGFX;
+					freerdp_planar_topdown_image(context->codecs->planar, TRUE);
+				}
 			}
-			else
-			{
-				qDebug("Gfx Pipeline Opened");
-				mGfxOpened = true;
-				mRenderMode = RENDER_EGFX;
-				freerdp_planar_topdown_image(mClient->context->codecs->planar, TRUE);
+
+			/* Display channel */
+			if (mDisplay.channel) {
+				qDebug("drdynvc ready, opening disp channel");
+				if (mDisplay.channel->Open(mDisplay.channel) != CHANNEL_RC_OK) {
+					qDebug("error opening display channel");
+
+					disp_server_context_free(mDisplay.channel);
+					mDisplay.channel = nullptr;
+					return;
+				}
+				mDisplay.opened = true;
 			}
+
 			mFlags.setFlag(PEER_WAITING_DYNVC, false);
 		}
 		break;
@@ -679,7 +868,13 @@ void QFreeRdpPeer::repaint(const QRegion &region, bool useCompositorCache) {
 	   mFlags.testFlag(PEER_WAITING_GRAPHICS))
 		return;
 
-	QRegion dirty = mCompositor.qtToRdpDirtyRegion(region);
+	QRegion repaintRegion = region;
+	if (mFirstFrame) {
+		repaintRegion = mPlatform->mAllMonitorsRegion;
+		mFirstFrame = false;
+	}
+
+	QRegion dirty = mCompositor.qtToRdpDirtyRegion(repaintRegion);
 	// We bypass the compositor only _after_ giving it the lastest update, so
 	// that its cache stays in sync with what we send to our peer.
 	if (!useCompositorCache)
@@ -781,11 +976,11 @@ void QFreeRdpPeer::repaint_raw(const QRegion &region) {
 	}
 }
 
-static void adjustRectForPlanar(QRect &rect, const QSize &screenSize) {
+static void adjustRectForPlanar(QRect &rect, const QRect &screen) {
 	/* xfreerdp doesn't seen to like 1px size for planar, let's give
 	 * it a little more */
 	if (rect.width() < 4) {
-		if (rect.right() + 4 > screenSize.width()) {
+		if (rect.right() + 4 > screen.right()) {
 			/* update rect is at the right of the screen, increase the rect by the left */
 			rect.setLeft(rect.left() - 4);
 		} else {
@@ -794,7 +989,7 @@ static void adjustRectForPlanar(QRect &rect, const QSize &screenSize) {
 	}
 
 	if (rect.height() < 4) {
-		if (rect.bottom() + 4 > screenSize.height()) {
+		if (rect.bottom() + 4 > screen.bottom()) {
 			/* update rect is at the bottom of the screen, increase the rect by the top */
 			rect.setTop(rect.top() - 4);
 		} else {
@@ -804,8 +999,8 @@ static void adjustRectForPlanar(QRect &rect, const QSize &screenSize) {
 }
 
 bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
-	if (!mSurfaceCreated && !initGfxDisplay())
-		return false;
+	//if (!mSurfaceCreated && !initGfxDisplay())
+	//	return false;
 
 	//qDebug() << "repaint_egfx_raw(" << region << ")";
 	SYSTEMTIME sTime;
@@ -815,7 +1010,7 @@ bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
 	startFrame.frameId = ++mFrameId;
 	startFrame.timestamp = (UINT32)(sTime.wHour << 22U | sTime.wMinute << 16U |
 			sTime.wSecond << 10U | sTime.wMilliseconds);
-	if (mRdpgfx->StartFrame(mRdpgfx, &startFrame) != CHANNEL_RC_OK)
+	if (mEgfx.rdpgfx->StartFrame(mEgfx.rdpgfx, &startFrame) != CHANNEL_RC_OK)
 		return false;
 
 	RDPGFX_SURFACE_COMMAND cmd;
@@ -829,65 +1024,130 @@ bool QFreeRdpPeer::repaint_egfx(const QRegion &region, bool compress) {
 	QSize peerSize(settings->DesktopWidth, settings->DesktopHeight);
 
 	BYTE *data = nullptr;
-	const QImage *src = mPlatform->getScreen()->getScreenBits();
+	const QImage *src = mPlatform->getDesktopBits();
+	QPoint origin = mPlatform->monitorsRegion().boundingRect().topLeft();
+	int monitorIndex = 0;
 
-	for (QRect rect : region) {
-		//qDebug() << "repaint_egfx(" << rect << ")";
-		if (compress)
-			adjustRectForPlanar(rect, peerSize);
+	for (const QFreeRdpScreen *screen: mPlatform->monitors()) {
+		QRect monitorGeometry = screen->geometry().translated(-origin);
+		QPoint monitorOrigin = monitorGeometry.topLeft();
 
-		cmd.left = rect.left();
-		cmd.top = rect.top();
-		cmd.right = rect.right() + 1;
-		cmd.bottom = rect.bottom() + 1;
-		cmd.width = rect.width();
-		cmd.height = rect.height();
+		UINT16 surfaceId;
+		bool doCreateSurface = false;
+		if (monitorIndex >= mEgfx.surfaces.size()) {
+			surfaceId = mEgfx.surfaceCounter++;
+			mEgfx.surfaces.push_back(EgfxSurface(surfaceId, screen->rdpGeometry()));
+			doCreateSurface = true;
+		} else {
+			auto & surface = mEgfx.surfaces[monitorIndex];
+			if (surface.rdpGeom != screen->rdpGeometry()) {
+				qDebug("recreating surface for screen %d", monitorIndex);
+				RDPGFX_DELETE_SURFACE_PDU deleteSurface = {
+					surface.surfaceId
+				};
 
-		if (compress) {
-			auto planar = mClient->context->codecs->planar;
-			freerdp_bitmap_planar_context_reset(planar, cmd.width, cmd.height);
-			freerdp_planar_topdown_image(planar, TRUE);
-			const BYTE *srcBytes = (const BYTE *)src->bits() + (cmd.top * src->bytesPerLine()) + (cmd.left * 4);
-			cmd.length = 0;
-			cmd.data = freerdp_bitmap_compress_planar(planar, srcBytes, PIXEL_FORMAT_BGRA32,
-					cmd.width, cmd.height, src->bytesPerLine(), NULL, &cmd.length);
-			if (!cmd.data && cmd.length != 0) {
-				qDebug("error while planar compression");
+				if (mEgfx.rdpgfx->DeleteSurface(mEgfx.rdpgfx, &deleteSurface) != CHANNEL_RC_OK) {
+					qDebug("error deleting surface");
+					return false;
+				}
+				surface.rdpGeom = screen->rdpGeometry();
+				doCreateSurface = true;
+			}
+			surfaceId = surface.surfaceId;
+		}
+
+		if (doCreateSurface) {
+			QRect allGeometry = mPlatform->mAllMonitorsRegion.boundingRect();
+
+			RDPGFX_CREATE_SURFACE_PDU createSurface = {
+				surfaceId,
+				(UINT16)monitorGeometry.width(), (UINT16)monitorGeometry.height(),
+				GFX_PIXEL_FORMAT_XRGB_8888
+			};
+
+			if (mEgfx.rdpgfx->CreateSurface(mEgfx.rdpgfx, &createSurface) != CHANNEL_RC_OK) {
+				qDebug("error creating surface");
+				return false;
+			}
+
+			RDPGFX_MAP_SURFACE_TO_OUTPUT_PDU surfaceToOutput = {
+				surfaceId, 0,
+				(UINT32)(monitorGeometry.left() - allGeometry.left()),
+				(UINT32)(monitorGeometry.top() - allGeometry.top())
+			};
+			if (mEgfx.rdpgfx->MapSurfaceToOutput(mEgfx.rdpgfx, &surfaceToOutput) != CHANNEL_RC_OK) {
+				qDebug("error mapping surface to output");
 				return false;
 			}
 		} else {
-			BYTE *tmp = (BYTE *)realloc(data, cmd.width * cmd.height * 4);
-			if (!tmp) {
-				free(data);
-				qDebug("unable to realloc tmpData");
-				return false;
-			}
-			data = tmp;
-
-			if (!freerdp_image_copy(data, cmd.format, 0 /*nDstStep*/, 0, 0, cmd.width, cmd.height,
-						(const BYTE *)src->bits(), PIXEL_FORMAT_BGRA32, src->bytesPerLine(),
-						rect.left(), rect.top(), nullptr, 0)) {
-				free(data);
-				qDebug("error during freerdp_image_copy()");
-				return false;
-			}
-
-			cmd.data = data;
-			cmd.length = cmd.width * cmd.height * 4;
 		}
 
-		if (mRdpgfx->SurfaceCommand(mRdpgfx, &cmd) != CHANNEL_RC_OK) {
-			free(data);
-			qDebug("error during surfaceCommand");
-			return false;
+		cmd.surfaceId = surfaceId;
+
+		for (auto rect : region.intersected(monitorGeometry)) {
+			//qDebug() << "repaint_egfx(" << rect << ")";
+			if (compress)
+				adjustRectForPlanar(rect, monitorGeometry);
+
+			cmd.left = rect.left();
+			cmd.top = rect.top();
+			cmd.right = rect.right() + 1;
+			cmd.bottom = rect.bottom() + 1;
+			cmd.width = rect.width();
+			cmd.height = rect.height();
+
+			if (compress) {
+				auto planar = mClient->context->codecs->planar;
+				freerdp_bitmap_planar_context_reset(planar, cmd.width, cmd.height);
+				freerdp_planar_topdown_image(planar, TRUE);
+				const BYTE *srcBytes = (const BYTE *)src->bits() + (cmd.top * src->bytesPerLine()) + (cmd.left * 4);
+				cmd.length = 0;
+				cmd.data = freerdp_bitmap_compress_planar(planar, srcBytes, PIXEL_FORMAT_BGRA32,
+						cmd.width, cmd.height, src->bytesPerLine(), NULL, &cmd.length);
+				if (!cmd.data && cmd.length != 0) {
+					qDebug("error while planar compression");
+					return false;
+				}
+			} else {
+				BYTE *tmp = (BYTE *)realloc(data, cmd.width * cmd.height * 4);
+				if (!tmp) {
+					free(data);
+					qDebug("unable to realloc tmpData");
+					return false;
+				}
+				data = tmp;
+
+				if (!freerdp_image_copy(data, cmd.format, 0 /*nDstStep*/, 0, 0, cmd.width, cmd.height,
+							(const BYTE *)src->bits(), PIXEL_FORMAT_BGRA32, src->bytesPerLine(),
+							rect.left(), rect.top(), nullptr, 0)) {
+					free(data);
+					qDebug("error during freerdp_image_copy()");
+					return false;
+				}
+
+				cmd.data = data;
+				cmd.length = cmd.width * cmd.height * 4;
+			}
+			cmd.left -= monitorOrigin.x();
+			cmd.right -= monitorOrigin.x();
+			cmd.top -= monitorOrigin.y();
+			cmd.bottom -= monitorOrigin.y();
+
+			if (mEgfx.rdpgfx->SurfaceCommand(mEgfx.rdpgfx, &cmd) != CHANNEL_RC_OK) {
+				free(data);
+				qDebug("error during surfaceCommand");
+				return false;
+			}
+
+			if (compress)
+				free(cmd.data);
 		}
 
-		if (compress)
-			free(cmd.data);
+		monitorIndex++;
 	}
 
 	RDPGFX_END_FRAME_PDU endFrame = { mFrameId };
-	if (mRdpgfx->EndFrame(mRdpgfx, &endFrame) != CHANNEL_RC_OK)
+	if (mEgfx.rdpgfx->EndFrame(mEgfx.rdpgfx, &endFrame) != CHANNEL_RC_OK)
 		return false;
 
 	return true;
@@ -1024,7 +1284,7 @@ void QFreeRdpPeer::paintBitmap(const QVector<QRect> &rects) {
 		return;
 
 	// get source image bits
-	const QImage *src = mPlatform->getScreen()->getScreenBits();
+	const QImage *src = mPlatform->getDesktopBits();
 
 	int i = 0;
 	auto settings = mClient->context->settings;
@@ -1158,7 +1418,7 @@ void QFreeRdpPeer::paintSurface(const QVector<QRect> &rects) {
 	marker.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
 	update->SurfaceFrameMarker(mClient->context, &marker);
 
-	const QImage *src = mPlatform->getScreen()->getScreenBits();
+	const QImage *src = mPlatform->getDesktopBits();
 	foreach(QRect rect, rects) {
 		cmd.bmp.width = rect.width();
 		cmd.destLeft = rect.left();
