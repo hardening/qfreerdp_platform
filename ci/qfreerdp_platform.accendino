@@ -17,11 +17,15 @@ for version in (5, 6,):
         UBUNTU_LIKE: ['libxkbcommon-dev', 'libglib2.0-dev', 'libxrender-dev', 'libudev-dev', 'libfontconfig1-dev', 'libxcursor-dev'] + debQtDeps,
     }
 
+    qfreerdp_tests = []
+    if version == 5:
+        qfreerdp_tests.append('-Dtests=disabled')
+
     ARTIFACTS.append(
         MesonBuildArtifact(f'qfreerdp_platform-qt{version}', ['freerdp3'],
             LocalSource('.', do_symlink=True),
             pkgs=qfreerdpPkgs,
-            mesonOpts=[f'-Dqt_version=qt{version}', '-Dglobal_install=false'],
+            mesonOpts=[f'-Dqt_version=qt{version}', '-Dglobal_install=false'] + qfreerdp_tests,
             provides=['qfreerdp_platform'],
             toolchainArtifacts='c++'
         )

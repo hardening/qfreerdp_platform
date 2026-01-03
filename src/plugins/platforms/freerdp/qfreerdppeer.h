@@ -25,6 +25,7 @@
 #include <freerdp/peer.h>
 #include <freerdp/pointer.h>
 #include <freerdp/server/rdpgfx.h>
+#include <freerdp/server/disp.h>
 
 #include <QImage>
 #include <QMap>
@@ -43,14 +44,40 @@ class QSocketNotifier;
  * @brief a peer connected in RDP to the Qt5 backend
  */
 class QFreeRdpPeer : public QObject {
+    Q_OBJECT
+
 	friend class QFreerdpPeerClipboard;
 	friend class QFreeRdpPlatform;
 
-    Q_OBJECT
+public:
+	/** @brief an egfx surface */
+	struct EgfxSurface {
+		EgfxSurface(UINT16 pSurfaceId, const QRect &pRdpGeom);
+
+		UINT16 surfaceId;
+		QRect rdpGeom;
+	};
+
+	/** @brief state for the egfx channel */
+	struct EgfxState {
+		EgfxState();
+		bool opened;
+		RdpgfxServerContext* rdpgfx;
+		UINT16 surfaceCounter;
+		QList<EgfxSurface> surfaces;
+	};
+
+	/** @brief state for the display channel */
+	struct DispState {
+		DispState();
+		bool opened;
+		DispServerContext* channel;
+		UINT32 channelId;
+	};
 
 public:
     QFreeRdpPeer(QFreeRdpPlatform *platform, freerdp_peer* client);
-    ~QFreeRdpPeer();
+    virtual ~QFreeRdpPeer();
 
     bool init();
 
@@ -69,7 +96,7 @@ protected:
 	bool repaint_egfx(const QRegion &rect, bool compress);
 	void handleVirtualKeycode(quint32 flags, quint32 vk_code);
 	void updateMouseButtonsFromFlags(DWORD flags, bool &down, bool extended);
-	void init_display(freerdp_peer* client);
+	bool init_display(freerdp_peer* client);
 	UINT16 getCursorCacheIndex(Qt::CursorShape shape, bool &isNew, bool &isUpdate);
 	bool initializeChannels();
 
@@ -78,9 +105,13 @@ protected:
 	bool egfx_caps_test(const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise, UINT32 version, UINT &rc);
 	void checkDrdynvcState();
 
+signals:
+	void updatedMonitors(DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu);
+
 public slots:
 	void incomingBytes(int sock);
 	void channelTraffic(int sock);
+	void onUpdatedMonitors(DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu);
 
 
 protected:
@@ -100,8 +131,13 @@ protected:
 	static BOOL xf_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16 *area);
 	static BOOL xf_surface_frame_acknowledge(rdpContext* context, UINT32 frameId);
 
+	static BOOL dynvc_dynChannelCreationStatus(void* userdata, UINT32 channelId, INT32 creationStatus);
+
 	static UINT rdpgfx_caps_advertise(RdpgfxServerContext* context, const RDPGFX_CAPS_ADVERTISE_PDU* capsAdvertise);
 	static UINT rdpgfx_frame_acknowledge(RdpgfxServerContext* context, const RDPGFX_FRAME_ACKNOWLEDGE_PDU* frameAcknowledge);
+
+	static BOOL display_channelIdAssigned(DispServerContext* context, UINT32 channelId);
+	static UINT display_monitorLayout(DispServerContext* context, const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu);
 	/** @} */
 
 	void dropSocketNotifier(QSocketNotifier *notifier);
@@ -131,6 +167,7 @@ protected:
 		RENDER_EGFX,
     };
 
+    bool mFirstFrame;
     bool mSurfaceOutputModeEnabled;
     bool mNsCodecSupported;
     QFreeRdpCompositor mCompositor;
@@ -138,11 +175,10 @@ protected:
 
     HANDLE mVcm;
     QFreerdpPeerClipboard *mClipboard;
-    RdpgfxServerContext* mRdpgfx;
-    bool mGfxOpened;
-    bool mSurfaceCreated;
-    UINT16 mSurfaceId;
     UINT32 mFrameId;
+
+    EgfxState mEgfx;
+    DispState mDisplay;
 
     /** @brief a cursor cache entry */
 	struct CursorCacheItem {

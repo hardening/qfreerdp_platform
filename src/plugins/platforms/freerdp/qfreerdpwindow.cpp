@@ -102,8 +102,11 @@ void QFreeRdpWindow::setWindowState(Qt::WindowStates state) {
 	if (state & Qt::WindowActive)
 		mPlatform->mWindowManager->setFocusWindow(this);
 
-	if (state & (Qt::WindowMaximized | Qt::WindowFullScreen))
-		setGeometry(mPlatform->getScreen()->geometry());
+	if (state & (Qt::WindowMaximized | Qt::WindowFullScreen)) {
+		QPlatformScreen *pscreen = QPlatformScreen::platformScreenForWindow(window());
+		if (pscreen)
+			setGeometry(pscreen->geometry());
+	}
 
 	QWindowSystemInterface::handleWindowStateChanged(window(), state);
 	QWindowSystemInterface::flushWindowSystemEvents(); // Required for oldState to work on WindowStateChanged
