@@ -26,9 +26,15 @@
 	#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
 	#include <QtThemeSupport/private/qgenericunixthemes_p.h>
 #else
+#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
 	#include <QtGui/private/qgenericunixfontdatabase_p.h>
 	#include <QtGui/private/qgenericunixeventdispatcher_p.h>
 	#include <QtGui/private/qgenericunixthemes_p.h>
+#else
+	#include <QtGui/private/qgenericunixfontdatabase_p.h>
+	#include <QtGui/private/qgenericunixeventdispatcher_p.h>
+	#include <QtGui/private/qgenericunixtheme_p.h>
+#endif
 #endif
 
 #include <qpa/qplatformnativeinterface.h>
