@@ -72,7 +72,7 @@ public:
     QRegion decorationGeometry() const;
     void setDecorate(bool active);
 
-    const QImage *windowContent();
+    virtual const QImage *windowContent();
     void center();
     void notifyDirty(const QRegion &dirty);
 
@@ -85,6 +85,17 @@ protected:
 
     bool mDecorate;
     WmWindowDecoration *mDecorations;
+};
+
+
+/**
+ * @brief
+ */
+class QFreeRdpRasterWindow : public QFreeRdpWindow {
+public:
+	QFreeRdpRasterWindow(QWindow *window, QFreeRdpPlatform *platform);
+
+	const QImage *windowContent() override;
 };
 
 QT_END_NAMESPACE

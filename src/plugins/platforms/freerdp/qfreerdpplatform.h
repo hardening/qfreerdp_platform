@@ -23,6 +23,7 @@
 #define __QFREERDP_H___
 
 #include <QList>
+#include <QMutex>
 #include <QSocketNotifier>
 #include <qpa/qplatformintegration.h>
 #include <qabstracteventdispatcher.h>
@@ -45,6 +46,8 @@ class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 class QFreeRdpClipboard;
 class QFreeRdpCursor;
+class QFreeRdpEglPlatformContext;
+struct QFreeRdpEglDevice;
 
 enum DisplayMode {
 	UNKNOWN = 0,
@@ -104,6 +107,7 @@ class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpWindow;
 	friend class QFreeRdpPeer;
 	friend class QFreeRdpListener;
+	friend class QFreeRdpEglPlatformContext;
 
 	Q_OBJECT
 public:
@@ -120,6 +124,8 @@ public:
     bool hasCapability(QPlatformIntegration::Capability cap) const override;
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
+    QOpenGLContext::OpenGLModuleType openGLModuleType() override;
+    QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const override;
     QPlatformFontDatabase *fontDatabase() const override;
     QStringList themeNames() const override;
     QPlatformTheme *createPlatformTheme(const QString &name) const override;
@@ -194,6 +200,9 @@ protected:
     QPlatformNativeInterface *mNativeInterface;
     QScopedPointer<QPlatformInputContext> mInputContext;
     QFreeRdpClipboard *mClipboard;
+    mutable QMutex mEglDeviceLock;
+    mutable QFreeRdpEglDevice *mEglDevice;
+    mutable bool mEglDeviceFailed;
 
     QFreeRdpPlatformConfig *mConfig;
     QList<QFreeRdpScreen *> mScreens;

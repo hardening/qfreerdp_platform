@@ -61,6 +61,10 @@
 #include <winpr/ssl.h>
 #include <winpr/wtsapi.h>
 #include <freerdp/channels/channels.h>
+#ifdef WITH_GL_SUPPORT
+#include "qfreerdpeglplatformcontext.h"
+#include "qfreerdprendernodeswindow.h"
+#endif
 
 #define DEFAULT_CERT_FILE 	"cert.crt"
 #define DEFAULT_KEY_FILE 	"cert.key"
@@ -208,6 +212,8 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& par
 , mEventDispatcher(createUnixEventDispatcher())
 , mNativeInterface(new QPlatformNativeInterface())
 , mClipboard(new QFreeRdpClipboard())
+, mEglDevice(nullptr)
+, mEglDeviceFailed(false)
 , mConfig(new QFreeRdpPlatformConfig(paramList))
 , mAllMonitorsRegion(QRect(QPoint(0, 0), QSize(mConfig->screenSz.width(), mConfig->screenSz.height())))
 , mDesktopImage(new QImage(mConfig->screenSz, QImage::Format_ARGB32_Premultiplied))
@@ -250,6 +256,9 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mNativeInterface;
 	delete mFontDb;
 	delete mWindowManager;
+#ifdef WITH_GL_SUPPORT
+	delete mEglDevice;
+#endif
 
 	for(auto screen: mScreens)
 		QWindowSystemInterface::handleScreenRemoved(screen->screen()->handle());
@@ -259,12 +268,30 @@ QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
 	qDebug() << "QFreeRdpPlatform::createPlatformWindow(window=" << (void*)window << " modality=" << window->modality()
 			<< " flags=" << window->flags() << ")";
 
-	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
-	mWindowManager->addWindow(ret);
-	auto it = mbackingStores.find(window);
-	if (it != mbackingStores.end())
-		ret->setBackingStore(*it);
+	QFreeRdpWindow *ret = nullptr;
 
+	switch (window->surfaceType()) {
+		case QSurface::RasterSurface: {
+			ret = new QFreeRdpRasterWindow(window, const_cast<QFreeRdpPlatform*>(this));
+			auto it = mbackingStores.find(window);
+			if (it != mbackingStores.end())
+				ret->setBackingStore(*it);
+			break;
+		}
+#ifdef WITH_GL_SUPPORT
+		case QSurface::OpenGLSurface:
+			ret = new QFreeRdpRenderNodesWindow(window, const_cast<QFreeRdpPlatform*>(this));
+			break;
+#endif
+		default:
+			qFatal("unhandled window type %d", (int)window->surfaceType());
+			break;
+	}
+
+	if (!ret)
+		return nullptr;
+
+	mWindowManager->addWindow(ret);
 	return ret;
 }
 
@@ -303,8 +330,28 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 		return true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
 	case RhiBasedRendering:
+		/* needed for QtQuick (else it falls back to the software backend) and QOpenGLWidget
+		 * (else QPlatformBackingStore::rhiFlush() crashes without a rhi) */
+#ifdef WITH_GL_SUPPORT
+		return QFreeRdpEglPlatformContext::haveRenderNodesSupport();
+#else
 		return false;
 #endif
+#endif
+	case WindowManagement:
+		return true;
+	case OpenGLOnRasterSurface:
+		/* GL contexts can only be bound to QFreeRdpRenderNodesWindow */
+		return false;
+    case OpenGL:
+    case ThreadedOpenGL:
+    case BufferQueueingOpenGL:
+#ifdef WITH_GL_SUPPORT
+		return QFreeRdpEglPlatformContext::haveRenderNodesSupport();
+#else
+		return false;
+#endif
+
 	default:
 		return QPlatformIntegration::hasCapability(cap);
 	}
@@ -514,6 +561,49 @@ void QFreeRdpPlatform::dropBackingStore(QFreeRdpBackingStore *back)
 			break;
 		}
 }
+
+QOpenGLContext::OpenGLModuleType QFreeRdpPlatform::openGLModuleType() {
+        return QOpenGLContext::LibGLES;
+}
+
+QPlatformOpenGLContext *QFreeRdpPlatform::createPlatformOpenGLContext(QOpenGLContext *context) const {
+#ifdef WITH_GL_SUPPORT
+	/* contexts can be created from render threads */
+	QMutexLocker locker(&mEglDeviceLock);
+	if (!mEglDevice) {
+		if (mEglDeviceFailed)
+			return nullptr;
+
+		mEglDevice = QFreeRdpEglDevice::create();
+		if (!mEglDevice) {
+			mEglDeviceFailed = true;
+			return nullptr;
+		}
+	}
+	locker.unlock();
+
+	QPlatformOpenGLContext *share = context->shareHandle();
+	if (share && !dynamic_cast<QFreeRdpEglPlatformContext *>(share)) {
+		qWarning("ignoring foreign share context");
+		share = nullptr;
+	}
+
+	/* without explicit sizes EGL would pick the first matching config, which is RGB565 */
+	QSurfaceFormat format = context->format();
+	if (format.redBufferSize() <= 0)
+		format.setRedBufferSize(8);
+	if (format.greenBufferSize() <= 0)
+		format.setGreenBufferSize(8);
+	if (format.blueBufferSize() <= 0)
+		format.setBlueBufferSize(8);
+
+	return new QFreeRdpEglPlatformContext(const_cast<QFreeRdpPlatform *>(this), format, share, mEglDevice);
+#else
+	Q_UNUSED(context);
+	return nullptr;
+#endif
+}
+
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {
 	foreach(QFreeRdpPeer *peer, mPeers) {

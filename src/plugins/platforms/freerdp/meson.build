@@ -41,6 +41,18 @@ moc_headers = [
     'qfreerdpwmwidgets.h',
 ]
 
+if gl_support.enabled()
+	sources += [
+		'qfreerdpeglplatformcontext.cpp',
+		'qfreerdprendernodeswindow.cpp'
+	]
+
+	headers += [
+		'qfreerdprendernodeswindow.h',
+		'qfreerdpeglplatformcontext.h'
+	]
+endif
+
 resources_files = qt_mod.compile_resources(sources: ['freerdp.qrc'])
 
 private_dirs = [
@@ -66,9 +78,9 @@ endif
 message('Plugin will be installed to @0@'.format(target_install_dir))
 
 qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
-    cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE'],
+    cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE'] + qt_defines,
     include_directories: ['../../..', private_dirs],
-    dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps],
+    dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps] + accel_deps,
     link_with: libwmwidgets,
     install: true,
     install_dir: target_install_dir
@@ -94,10 +106,10 @@ if with_tests
 	            freerdp3_deps,
 	            xkbcommon_deps,
 	            xcursor_deps
-	        ],
+	        ]  + accel_deps,
 	        link_with: libwmwidgets,
 	        include_directories: ['../../..', private_dirs, 'tests'],
-	        cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE', '-DBUILD_TESTS']
+	        cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE', '-DBUILD_TESTS'] + qt_defines
 	    )
 	)
 endif

@@ -22,6 +22,7 @@
 #ifndef __QFREERDPPEER_H__
 #define __QFREERDPPEER_H__
 
+#include <freerdp/settings_types_private.h>
 #include <freerdp/peer.h>
 #include <freerdp/pointer.h>
 #include <freerdp/server/rdpgfx.h>

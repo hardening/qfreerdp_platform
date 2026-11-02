@@ -47,6 +47,10 @@ public:
 
     void resize(const QSize &size, const QRegion &staticContents) override;
 
+    /** used by QPlatformBackingStore::rhiFlush() to compose the raster content with
+     * the GL textures (QOpenGLWidget, QQuickWidget) */
+    QImage toImage() const override { return mImage; }
+
 protected:
     QImage mImage;
     QFreeRdpPlatform *mPlatform;

@@ -70,6 +70,8 @@ void QFreeRdpWindow::setDecorate(bool active)
 	if (active) {
 		mDecorations = new WmWindowDecoration(this, mPlatform->getTheme(), mPlatform->getIconResource(ICON_RESOURCE_CLOSE_BUTTON));
 
+		/* set before setGeometry() so that frameMargins() / outerWindowGeometry() include the decorations */
+		mDecorate = true;
 		setGeometry(
 				geometry().adjusted(WM_BORDERS_SIZE, TOP_BAR_SIZE, -WM_BORDERS_SIZE, -WM_BORDERS_SIZE)
 		);
@@ -223,5 +225,19 @@ void QFreeRdpWindow::center() {
 
 	this->setGeometry(QRect(x, y, windowGeometry.width(), windowGeometry.height()));
 }
+
+QFreeRdpRasterWindow::QFreeRdpRasterWindow(QWindow *window, QFreeRdpPlatform *platform)
+: QFreeRdpWindow(window, platform)
+{
+}
+
+const QImage *QFreeRdpRasterWindow::windowContent() {
+	if (!mBackingStore) {
+		qWarning("QFreeRdpWindow::%s: window %p has no backing store", __func__, (void*)this);
+		return 0;
+	}
+	return (const QImage*)mBackingStore->paintDevice();
+}
+
 
 QT_END_NAMESPACE

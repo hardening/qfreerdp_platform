@@ -1,6 +1,6 @@
 project('qfreerdp', 'cpp',
   version : '1.0.0',
-  meson_version : '>= 0.63',  # before version 0.63.0 Meson would fail to find Qt 6.1 or later
+  meson_version : '>= 1.1',  # before version 0.63.0 Meson would fail to find Qt 6.1 or later
   default_options : [ 'warning_level=1',
                       'buildtype=debugoptimized' ])
 
@@ -19,7 +19,7 @@ endif
 
 qt_mod = import(qt_ver)
 
-qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Test']
+qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Test', 'OpenGL']
 if qt_ver == 'qt5'
     qt_modules += ['FontDatabaseSupport', 'EventDispatcherSupport', 'ThemeSupport']
 endif
@@ -45,6 +45,25 @@ xcursor_deps = dependency('xcursor')
 
 with_tests = get_option('tests').enabled()
 
+accel_deps = []
+qt_defines = []
+
+gl_support = get_option('gl')
+
+udev_deps = dependency('libudev', required: gl_support)
+gbm_deps = dependency('gbm', required: gl_support)
+gl_deps = dependency('gl', required: gl_support)
+egl_deps = dependency('egl', required: gl_support)
+
+if not gl_support.disabled()
+	gl_support = gl_support.enable_if( udev_deps.found() and gbm_deps.found() and gl_deps.found() and egl_deps.found() )
+endif
+
+if gl_support.enabled()
+	accel_deps += [udev_deps, gbm_deps, egl_deps, gl_deps]
+	qt_defines += ['-DWITH_GL_SUPPORT=1']
+endif
+
 
 # Windows specific keyboard layouts
 xkb_data_path = get_option('xkb_data_path')
@@ -58,3 +77,18 @@ install_subdir('xkb',
 )
 
 subdir('src')
+if gl_support.enabled()
+	subdir('applications/gltest')
+endif
+
+
+summary({
+	'Build with GL support': gl_support.enabled(),
+	'Build unitary tests': with_tests,
+	'Qt': qt_ver,
+	},
+	section: 'Configuration',
+	bool_yn: true
+)
+
+
