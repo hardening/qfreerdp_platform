@@ -38,23 +38,27 @@ class QFreeRdpScreen : public QObject, public QPlatformScreen
 
     Q_OBJECT
 public:
-    QFreeRdpScreen(QFreeRdpPlatform *platform, int width, int height);
+    QFreeRdpScreen(QFreeRdpPlatform *platform, const QRect &geom, const QRect &freerdpGeom);
     virtual ~QFreeRdpScreen();
 
+    /** @overload QPlatformScreen
+     * @{ */
     QRect geometry() const override;
     int depth() const override;
     QImage::Format format() const override;
     qreal refreshRate() const override;
     QPlatformCursor *cursor() const override;
+    /** @} */
 
-    QImage *getScreenBits() { return mScreenBits; }
-public slots:
     void setGeometry(const QRect &geometry);
+    void setRdpGeometry(const QRect &rdpGeometry);
+    void setFullGeometry(const QRect &geometry, const QRect &rdpGeometry);
+    QRect rdpGeometry() const;
 
 protected:
     QRect mGeometry;
+    QRect mRdpGeometry;
     QFreeRdpPlatform *mPlatform;
-    QImage *mScreenBits;
 };
 
 QT_END_NAMESPACE

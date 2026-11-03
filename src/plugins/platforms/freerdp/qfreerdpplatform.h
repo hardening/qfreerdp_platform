@@ -23,6 +23,7 @@
 #define __QFREERDP_H___
 
 #include <QList>
+#include <QMutex>
 #include <QSocketNotifier>
 #include <qpa/qplatformintegration.h>
 #include <qabstracteventdispatcher.h>
@@ -30,6 +31,7 @@
 
 #include <freerdp/listener.h>
 #include <freerdp/pointer.h>
+#include <freerdp/channels/disp.h>
 
 #include <wmwidgets/wmwidget.h>
 
@@ -44,6 +46,9 @@ class QFreeRdpBackingStore;
 class QFreeRdpWindowManager;
 class QFreeRdpClipboard;
 class QFreeRdpCursor;
+class QFreeRdpEglPlatformContext;
+struct QFreeRdpEglDevice;
+class QFreeRdpSmartcardService;
 
 enum DisplayMode {
 	UNKNOWN = 0,
@@ -83,7 +88,9 @@ struct QFreeRdpPlatformConfig {
 	bool tls_enabled;
 	int fps;
 	bool clipboard_enabled;
+	bool rdpdr_enabled;
 	bool egfx_enabled;
+	bool resize_enabled;
 	bool qtwebengine_compat;
 	char *secrets_file;
 
@@ -102,6 +109,8 @@ class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpWindow;
 	friend class QFreeRdpPeer;
 	friend class QFreeRdpListener;
+	friend class QFreeRdpEglPlatformContext;
+	friend class QFreeRdpNativeInterface;
 
 	Q_OBJECT
 public:
@@ -118,6 +127,8 @@ public:
     bool hasCapability(QPlatformIntegration::Capability cap) const override;
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
+    QOpenGLContext::OpenGLModuleType openGLModuleType() override;
+    QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const override;
     QPlatformFontDatabase *fontDatabase() const override;
     QStringList themeNames() const override;
     QPlatformTheme *createPlatformTheme(const QString &name) const override;
@@ -132,10 +143,6 @@ public:
     QAbstractEventDispatcher *createEventDispatcher() const override;
 #endif
     /** @} */
-
-
-	/** @return the main screen */
-	QFreeRdpScreen *getScreen() { return mScreen; }
 
 	/** @return clipboard */
 	QFreeRdpClipboard *rdpClipboard() const { return mClipboard; }
@@ -180,6 +187,13 @@ public:
 	QFreeRdpCursor *cursorHandler() const;
 	const QFreeRdpPlatformConfig *config() const { return mConfig; }
 
+	const QRegion &monitorsRegion() const;
+	const QList<QFreeRdpScreen *> monitors() const;
+	QImage *getDesktopBits() { return mDesktopImage; }
+	const QList<QFreeRdpScreen *> getScreens() const { return mScreens; }
+	bool updateMonitors(const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *layout, bool *sizeChanged);
+	QScreen *screenForWindow(const QWindow *window) const;
+
 protected:
 	bool loadResources();
 
@@ -189,9 +203,17 @@ protected:
     QPlatformNativeInterface *mNativeInterface;
     QScopedPointer<QPlatformInputContext> mInputContext;
     QFreeRdpClipboard *mClipboard;
+#ifdef WITH_PCSCD_SUPPORT
+	QFreeRdpSmartcardService *mSmartcardService;
+#endif
+    mutable QMutex mEglDeviceLock;
+    mutable QFreeRdpEglDevice *mEglDevice;
+    mutable bool mEglDeviceFailed;
 
     QFreeRdpPlatformConfig *mConfig;
-    QFreeRdpScreen *mScreen;
+    QList<QFreeRdpScreen *> mScreens;
+    QRegion mAllMonitorsRegion;
+    QImage *mDesktopImage;
     QFreeRdpCursor *mCursor;
     QFreeRdpWindowManager *mWindowManager;
 	QFreeRdpListener *mListener;

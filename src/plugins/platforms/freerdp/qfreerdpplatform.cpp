@@ -58,6 +58,8 @@
 #include "qfreerdpclipboard.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwindowmanager.h"
+#include "qfreerdpnativeinterface.h"
+#include "qfreerdpsmartcardservice.h"
 #include "xcursors/qfreerdpxcursor.h"
 
 #include <sys/socket.h>
@@ -67,6 +69,10 @@
 #include <winpr/ssl.h>
 #include <winpr/wtsapi.h>
 #include <freerdp/channels/channels.h>
+#ifdef WITH_GL_SUPPORT
+#include "qfreerdpeglplatformcontext.h"
+#include "qfreerdprendernodeswindow.h"
+#endif
 
 #define DEFAULT_CERT_FILE 	"cert.crt"
 #define DEFAULT_KEY_FILE 	"cert.key"
@@ -80,7 +86,9 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	tls_enabled(true),
 	fps(24),
 	clipboard_enabled(true),
+	rdpdr_enabled(true),
 	egfx_enabled(true),
+	resize_enabled(true),
 	qtwebengine_compat(false),
 	secrets_file(nullptr),
 	screenSz(800, 600),
@@ -170,9 +178,15 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param == "noegfx") {
 			qDebug("disabling egfx");
 			egfx_enabled = false;
+		} else if(param == "nordpdr") {
+			qDebug("disabling rdpdr");
+			rdpdr_enabled = false;
 		} else if(param == "noclipboard") {
 			qDebug("disabling clipboard");
 			clipboard_enabled = false;
+		} else if(param == "noresize") {
+			qDebug("disabling dynamic resize");
+			resize_enabled = false;
 		} else if(param.startsWith(QLatin1String("mode="))) {
 			subVal = param.mid(strlen("mode="));
 			QString mode = subVal;
@@ -208,10 +222,16 @@ QFreeRdpPlatformConfig::~QFreeRdpPlatformConfig() {
 QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& paramList)
 : mFontDb(new QGenericUnixFontDatabase())
 , mEventDispatcher(createUnixEventDispatcher())
-, mNativeInterface(new QPlatformNativeInterface())
+, mNativeInterface(new QFreeRdpNativeInterface(this))
 , mClipboard(new QFreeRdpClipboard())
+#ifdef WITH_PCSCD_SUPPORT
+, mSmartcardService(new QFreeRdpSmartcardService(this))
+#endif
+, mEglDevice(nullptr)
+, mEglDeviceFailed(false)
 , mConfig(new QFreeRdpPlatformConfig(paramList))
-, mScreen(new QFreeRdpScreen(this, mConfig->screenSz.width(), mConfig->screenSz.height()))
+, mAllMonitorsRegion(QRect(QPoint(0, 0), QSize(mConfig->screenSz.width(), mConfig->screenSz.height())))
+, mDesktopImage(new QImage(mConfig->screenSz, QImage::Format_ARGB32_Premultiplied))
 , mCursor(new QFreeRdpCursor(this))
 , mWindowManager(new QFreeRdpWindowManager(this, mConfig->fps))
 , mListener(new QFreeRdpListener(this))
@@ -220,7 +240,11 @@ QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& par
 {
 	//Disable desktop settings for now (or themes crash)
 	QGuiApplicationPrivate::obey_desktop_settings = false;
-	QWindowSystemInterface::handleScreenAdded(mScreen);
+
+	QRect screenGeom(QPoint(0, 0), mConfig->screenSz);
+	QFreeRdpScreen *mainScreen = new QFreeRdpScreen(this, screenGeom, screenGeom);
+	mScreens.push_back(mainScreen);
+	QWindowSystemInterface::handleScreenAdded(mainScreen);
 
 	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 }
@@ -238,7 +262,11 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	foreach(QFreeRdpPeer* peer, mPeers) {
 		delete peer;
 	}
+#ifdef WITH_PCSCD_SUPPORT
+	delete mSmartcardService;
+#endif
 
+	delete mDesktopImage;
 	delete mListener;
 	delete mCursor;
 	delete mConfig;
@@ -246,19 +274,42 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	delete mNativeInterface;
 	delete mFontDb;
 	delete mWindowManager;
-	QWindowSystemInterface::handleScreenRemoved(mScreen->screen()->handle());
+#ifdef WITH_GL_SUPPORT
+	delete mEglDevice;
+#endif
+
+	for(auto screen: mScreens)
+		QWindowSystemInterface::handleScreenRemoved(screen->screen()->handle());
 }
 
 QPlatformWindow *QFreeRdpPlatform::createPlatformWindow(QWindow *window) const {
 	qDebug() << "QFreeRdpPlatform::createPlatformWindow(window=" << (void*)window << " modality=" << window->modality()
 			<< " flags=" << window->flags() << ")";
 
-	QFreeRdpWindow *ret = new QFreeRdpWindow(window, const_cast<QFreeRdpPlatform*>(this));
-	mWindowManager->addWindow(ret);
-	auto it = mbackingStores.find(window);
-	if (it != mbackingStores.end())
-		ret->setBackingStore(*it);
+	QFreeRdpWindow *ret = nullptr;
 
+	switch (window->surfaceType()) {
+		case QSurface::RasterSurface: {
+			ret = new QFreeRdpRasterWindow(window, const_cast<QFreeRdpPlatform*>(this));
+			auto it = mbackingStores.find(window);
+			if (it != mbackingStores.end())
+				ret->setBackingStore(*it);
+			break;
+		}
+#ifdef WITH_GL_SUPPORT
+		case QSurface::OpenGLSurface:
+			ret = new QFreeRdpRenderNodesWindow(window, const_cast<QFreeRdpPlatform*>(this));
+			break;
+#endif
+		default:
+			qFatal("unhandled window type %d", (int)window->surfaceType());
+			break;
+	}
+
+	if (!ret)
+		return nullptr;
+
+	mWindowManager->addWindow(ret);
 	return ret;
 }
 
@@ -293,10 +344,32 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 	switch (cap) {
 	case ThreadedPixmaps:
 		return true;
+	case MaximizeUsingFullscreenGeometry:
+		return true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
 	case RhiBasedRendering:
+		/* needed for QtQuick (else it falls back to the software backend) and QOpenGLWidget
+		 * (else QPlatformBackingStore::rhiFlush() crashes without a rhi) */
+#ifdef WITH_GL_SUPPORT
+		return QFreeRdpEglPlatformContext::haveRenderNodesSupport();
+#else
 		return false;
 #endif
+#endif
+	case WindowManagement:
+		return true;
+	case OpenGLOnRasterSurface:
+		/* GL contexts can only be bound to QFreeRdpRenderNodesWindow */
+		return false;
+    case OpenGL:
+    case ThreadedOpenGL:
+    case BufferQueueingOpenGL:
+#ifdef WITH_GL_SUPPORT
+		return QFreeRdpEglPlatformContext::haveRenderNodesSupport();
+#else
+		return false;
+#endif
+
 	default:
 		return QPlatformIntegration::hasCapability(cap);
 	}
@@ -305,6 +378,116 @@ bool QFreeRdpPlatform::hasCapability(QPlatformIntegration::Capability cap) const
 QPlatformNativeInterface *QFreeRdpPlatform::nativeInterface() const {
 	return mNativeInterface;
 }
+
+const QRegion &QFreeRdpPlatform::monitorsRegion() const {
+	return mAllMonitorsRegion;
+}
+
+const QList<QFreeRdpScreen *> QFreeRdpPlatform::monitors() const {
+	return mScreens;
+}
+
+QScreen *QFreeRdpPlatform::screenForWindow(const QWindow *window) const
+{
+	QPoint pos = window->position();
+	for(auto screen: mScreens) {
+		if (screen->geometry().contains(pos))
+			return screen->screen();
+	}
+	return nullptr;
+}
+
+bool QFreeRdpPlatform::updateMonitors(const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU *layout, bool *sizeChanged)
+{
+	UINT32 i;
+
+	mAllMonitorsRegion = QRegion();
+	QScreen *oldPrimary = QGuiApplication::primaryScreen();
+	QScreen *actualPrimary = nullptr;
+
+	/* compute freerdp origin */
+	QPoint newOrigin(0, 0);
+	for (i = 0; i < layout->NumMonitors; i++) {
+		DISPLAY_CONTROL_MONITOR_LAYOUT *updatedMon = &layout->Monitors[i];
+		if (updatedMon->Left < newOrigin.x())
+			newOrigin.setX(updatedMon->Left);
+
+		if (updatedMon->Top < newOrigin.y())
+			newOrigin.setY(updatedMon->Top);
+	}
+
+	/* modified monitors */
+	for (i = 0; i < layout->NumMonitors && i < (UINT32)mScreens.size(); i++)
+	{
+		DISPLAY_CONTROL_MONITOR_LAYOUT *updatedMon = &layout->Monitors[i];
+		QFreeRdpScreen *actualMon = mScreens.at(i);
+		if (updatedMon->Flags & DISPLAY_CONTROL_MONITOR_PRIMARY)
+			actualPrimary = actualMon->screen();
+
+		QRect rdpGeom(QPoint(updatedMon->Left, updatedMon->Top), QSize(updatedMon->Width, updatedMon->Height));
+		QRect geom( rdpGeom.translated(-newOrigin) );
+		if (actualMon->geometry() != geom) {
+			qDebug() << "geometry changed for screen" << i << "from" << actualMon->geometry()
+						   << "to" << geom;
+			actualMon->setGeometry(geom);
+		}
+		if (actualMon->rdpGeometry() != rdpGeom) {
+			qDebug() << "rdp geometry also changed for screen" << i;
+			actualMon->setRdpGeometry(rdpGeom);
+		}
+
+		actualMon->resizeMaximizedWindows();
+
+		mAllMonitorsRegion += geom;
+	}
+
+	/* added monitors */
+	for ( ; i < layout->NumMonitors; i++)
+	{
+		DISPLAY_CONTROL_MONITOR_LAYOUT *addedMon = &layout->Monitors[i];
+		QRect freerdpGeom(QPoint(addedMon->Left, addedMon->Top), QSize(addedMon->Width, addedMon->Height));
+		QRect geom( freerdpGeom.translated(-newOrigin) );
+		QFreeRdpScreen *screen = new QFreeRdpScreen(this, geom, freerdpGeom);
+		mScreens.push_back(screen);
+
+		QWindowSystemInterface::handleScreenAdded(screen, false);
+		QWindowSystemInterface::handleScreenGeometryChange(screen->screen(), geom, geom);
+
+		qDebug() << "added screen" << geom;
+		mAllMonitorsRegion += geom;
+	}
+
+	/* removed monitors */
+	int screensToRemove = 0;
+	for ( ; i < (UINT32)mScreens.size(); i++, screensToRemove++)
+	{
+		qDebug() << "dropped screen" << i;
+
+		QFreeRdpScreen *screen = mScreens.at(i);
+		QWindowSystemInterface::handleScreenRemoved(screen->screen()->handle());
+	}
+
+	for (i = 0; i < (UINT32)screensToRemove; i++)
+		mScreens.removeLast();
+	QRect allMonitorsRect = mAllMonitorsRegion.boundingRect();
+
+	if (actualPrimary != oldPrimary && actualPrimary)
+		QWindowSystemInterface::handlePrimaryScreenChanged(actualPrimary->handle());
+
+	*sizeChanged = (allMonitorsRect.size() != mDesktopImage->size());
+	if (*sizeChanged) {
+		qDebug() << "updating desktopImage to" << allMonitorsRect.size();
+
+		delete mDesktopImage;
+		mDesktopImage = new QImage(allMonitorsRect.size(), QImage::Format_ARGB32_Premultiplied);
+		mDesktopImage->fill(Qt::black);
+
+	}
+	mWindowManager->pushDirtyArea(mAllMonitorsRegion);
+	return true;
+}
+
+
 
 void QFreeRdpPlatform::initialize() {
 	if (mConfig->fixed_socket != -1) {
@@ -396,6 +579,49 @@ void QFreeRdpPlatform::dropBackingStore(QFreeRdpBackingStore *back)
 			break;
 		}
 }
+
+QOpenGLContext::OpenGLModuleType QFreeRdpPlatform::openGLModuleType() {
+        return QOpenGLContext::LibGLES;
+}
+
+QPlatformOpenGLContext *QFreeRdpPlatform::createPlatformOpenGLContext(QOpenGLContext *context) const {
+#ifdef WITH_GL_SUPPORT
+	/* contexts can be created from render threads */
+	QMutexLocker locker(&mEglDeviceLock);
+	if (!mEglDevice) {
+		if (mEglDeviceFailed)
+			return nullptr;
+
+		mEglDevice = QFreeRdpEglDevice::create();
+		if (!mEglDevice) {
+			mEglDeviceFailed = true;
+			return nullptr;
+		}
+	}
+	locker.unlock();
+
+	QPlatformOpenGLContext *share = context->shareHandle();
+	if (share && !dynamic_cast<QFreeRdpEglPlatformContext *>(share)) {
+		qWarning("ignoring foreign share context");
+		share = nullptr;
+	}
+
+	/* without explicit sizes EGL would pick the first matching config, which is RGB565 */
+	QSurfaceFormat format = context->format();
+	if (format.redBufferSize() <= 0)
+		format.setRedBufferSize(8);
+	if (format.greenBufferSize() <= 0)
+		format.setGreenBufferSize(8);
+	if (format.blueBufferSize() <= 0)
+		format.setBlueBufferSize(8);
+
+	return new QFreeRdpEglPlatformContext(const_cast<QFreeRdpPlatform *>(this), format, share, mEglDevice);
+#else
+	Q_UNUSED(context);
+	return nullptr;
+#endif
+}
+
 
 void QFreeRdpPlatform::repaint(const QRegion &region) {
 	foreach(QFreeRdpPeer *peer, mPeers) {

@@ -82,12 +82,16 @@ void WmWindowDecoration::setTitle(const QString &title) {
 }
 
 void WmWindowDecoration::resizeFromWindow(const QWindow *w) {
-	QPoint wPos = w->position();
-	mPos = QPoint(wPos.x() - WM_BORDERS_SIZE, wPos.y() - WM_DECORATION_HEIGHT);
-	mSize = QSize(w->width() + WM_BORDERS_SIZE*2, w->height() + WM_DECORATION_HEIGHT + WM_BORDERS_SIZE);
+	Q_UNUSED(w);
+
+	/* use the platform window geometry: the QWindow one is updated asynchronously
+	 * (QWindowSystemInterface::handleGeometryChange()) so it may still be the old one */
+	const QRect geom = mWindow->geometry();
+	mPos = QPoint(geom.x() - WM_BORDERS_SIZE, geom.y() - WM_DECORATION_HEIGHT);
+	mSize = QSize(geom.width() + WM_BORDERS_SIZE*2, geom.height() + WM_DECORATION_HEIGHT + WM_BORDERS_SIZE);
 
 	mGeometryRegion = mWindow->outerWindowGeometry();
-	mGeometryRegion -= w->geometry();
+	mGeometryRegion -= geom;
 
 	mResizeRegions.clear();
 

@@ -7,3 +7,7 @@ option('qt_version', type: 'combo', choices : ['auto', 'qt5', 'qt6'], value: 'au
 option('qt_platform_path', type: 'string', value: '', description: 'Override plugin install path inside libdir. Default: {qt_version}/plugins/platforms')
 
 option('xkb_data_path', type: 'string', value: '', description: 'Override absolute XKB data path. Default: /{prefix}/{datadir}/X11/xkb')
+
+option('gl', type: 'feature', value: 'auto', description: 'build with GL support')
+
+option('pcscd', type: 'feature', value: 'enabled', description: 'build with PCSCD smartcard support')

@@ -32,11 +32,11 @@ QT_BEGIN_NAMESPACE
 
 /**
  * @brief a compositor to convert Qt to RDP screen updates
- * 
+ *
  * Qt is not optimized for refreshing a partial part of a
  * screen. This compositor minimizes the regions impacted
  * by changes.
- * 
+ *
  * For instance, on Qt 5.15 any change in a Qt Window triggers
  * a full update of the screen. This compositor will only update
  * the impacted region on a 64x64 square basis. That means if one
@@ -44,14 +44,14 @@ QT_BEGIN_NAMESPACE
  */
 class QFreeRdpCompositor : public QObject {
 public:
-    explicit QFreeRdpCompositor(QFreeRdpScreen *screen);
+    explicit QFreeRdpCompositor(QFreeRdpPlatform *platform);
 
     /**
      * Reset compositor
      */
-    void reset(size_t width, size_t height);
+    void reset(const QSize &sz);
 
-	/** 
+	/**
 	 * Given a dirty region announced by Qt computes the effectively dirty
 	 * region (also updating the shadow image during the operation).
 	 *
@@ -62,7 +62,7 @@ public:
 
 private:
 
-    /** 
+    /**
 	 * Compares a tile in the current image and the previous one and returns
      * if it has been effectively modified. The shadow image is updated
      * during the process.
@@ -79,7 +79,7 @@ private:
 	QRegion dirtyRegion(const QRect &rect);
 
     std::unique_ptr<QImage> mShadowImage;
-    QFreeRdpScreen *mScreen;
+    QFreeRdpPlatform *mPlatform;
 };
 
 QT_END_NAMESPACE

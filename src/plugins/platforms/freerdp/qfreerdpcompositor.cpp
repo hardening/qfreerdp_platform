@@ -24,6 +24,7 @@
 
 #include <QImage>
 
+#include "qfreerdpplatform.h"
 #include "qfreerdpcompositor.h"
 
 #define SHADOW_TILE_SIZE 64
@@ -37,7 +38,7 @@
 QT_BEGIN_NAMESPACE
 
 // helper function to get region area in pixels
-static int area(const QRegion &region) {
+static int areaPixels(const QRegion &region) {
 	int sz = 0;
 
 	for (const QRect& rect: region)
@@ -48,23 +49,18 @@ static int area(const QRegion &region) {
 	return sz;
 }
 
-QFreeRdpCompositor::QFreeRdpCompositor(QFreeRdpScreen *screen) :
-        QObject(screen),
-        mScreen(screen) {}
+QFreeRdpCompositor::QFreeRdpCompositor(QFreeRdpPlatform *platform)
+: mPlatform(platform)
+{
+}
 
-void QFreeRdpCompositor::reset(size_t width, size_t height) {
-	mShadowImage = std::make_unique<QImage>(
-		QSize(width, height),
-		QImage::Format_ARGB32_Premultiplied
-	);
+void QFreeRdpCompositor::reset(const QSize &sz) {
+	mShadowImage = std::make_unique<QImage>(sz, QImage::Format_ARGB32_Premultiplied);
 	mShadowImage->fill(Qt::black);
 }
 
 QRegion QFreeRdpCompositor::qtToRdpDirtyRegion(const QRegion &region) {
-	QRegion dirty;
-	int inSize = 0;
-
-	inSize += area(region);
+	int inSize = areaPixels(region);
 
 	// if Qt compositor has a small enough tile size
 	// do not try to reduce it.
@@ -72,12 +68,13 @@ QRegion QFreeRdpCompositor::qtToRdpDirtyRegion(const QRegion &region) {
 		return region;
 	}
 
-	for (const QRect& rect: region)	{
+	QRegion dirty;
+	for (auto rect: region.intersected(mPlatform->monitorsRegion())) {
 		dirty += dirtyRegion(rect);
 	}
 
 	if (DEBUG) {
-		int outSize = area(dirty);
+		int outSize = areaPixels(dirty);
 		qDebug("%s: gain %d%%", __FUNCTION__, (outSize * 100) / inSize);
 	}
 
@@ -85,7 +82,7 @@ QRegion QFreeRdpCompositor::qtToRdpDirtyRegion(const QRegion &region) {
 }
 
 bool QFreeRdpCompositor::compareTileAndUpdate(const QRect &rect) {
-	const QImage *srcImg = mScreen->getScreenBits();
+	const QImage *srcImg = mPlatform->getDesktopBits();
 	int SrcStride = srcImg->bytesPerLine();
 	const int bytesPerPixel = 4;
 	const uchar *src = srcImg->bits() + (rect.top() * SrcStride) + (rect.left() * bytesPerPixel);
