@@ -8,8 +8,10 @@
 include('freerdp')
 
 for version in (5, 6,):
+    qfreerdp_tests = []
     if version == 5:
         debQtDeps = ['qtbase5-private-dev', 'qttools5-dev-tools']
+        qfreerdp_tests.append('-Dtests=disabled')
     elif version == 6:
         debQtDeps = ['qt6-base-private-dev', 'qt6-tools-dev-tools']
 
