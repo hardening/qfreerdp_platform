@@ -27,6 +27,7 @@
 #include <freerdp/pointer.h>
 #include <freerdp/server/rdpgfx.h>
 #include <freerdp/server/disp.h>
+#include <freerdp/server/rdpdr.h>
 
 #include <QImage>
 #include <QMap>
@@ -74,6 +75,12 @@ public:
 		bool opened;
 		DispServerContext* channel;
 		UINT32 channelId;
+	};
+
+	/** @brief state for the RDPDR channel */
+	struct RdpdrState {
+		RdpdrState();
+		RdpdrServerContext *channel;
 	};
 
 public:
@@ -178,6 +185,7 @@ protected:
     QFreerdpPeerClipboard *mClipboard;
     UINT32 mFrameId;
 
+    RdpdrState mRdpdr;
     EgfxState mEgfx;
     DispState mDisplay;
 
@@ -192,6 +200,9 @@ protected:
 
 private :
 	void sendFullRefresh(rdpSettings *settings);
+
+	/** stops and frees the rdpdr channel */
+	void dropRdpdr();
 	void paintBitmap(const QVector<QRect> &rects);
 	void paintSurface(const QVector<QRect> &rects);
 	BOOL detectDisplaySettings(freerdp_peer* client);

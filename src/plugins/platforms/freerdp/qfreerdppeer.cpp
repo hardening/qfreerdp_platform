@@ -46,6 +46,7 @@
 #include "qfreerdpclipboard.h"
 #include "qfreerdppeerclipboard.h"
 #include "qfreerdppeerkeyboard.h"
+#include "qfreerdpsmartcardservice.h"
 
 #include <QAbstractEventDispatcher>
 #include <QSocketNotifier>
@@ -168,6 +169,8 @@ QFreeRdpPeer::~QFreeRdpPeer() {
 		mDisplay.channel = nullptr;
 	}
 
+	dropRdpdr();
+
 	if (mVcm)
 		WTSCloseServer(mVcm);
 	mVcm = NULL;
@@ -190,6 +193,26 @@ QFreeRdpPeer::EgfxState::EgfxState()
 , rdpgfx(nullptr)
 , surfaceCounter(1)
 {
+}
+
+QFreeRdpPeer::RdpdrState::RdpdrState()
+: channel(nullptr)
+{
+}
+
+void QFreeRdpPeer::dropRdpdr() {
+	if (!mRdpdr.channel)
+		return;
+
+#ifdef WITH_PCSCD_SUPPORT
+	/* first, so that the smartcard service doesn't use the channel anymore */
+	mPlatform->mSmartcardService->detachChannel(mRdpdr.channel);
+#endif
+
+	/* rdpdr_server_context_free() doesn't stop the channel thread */
+	mRdpdr.channel->Stop(mRdpdr.channel);
+	rdpdr_server_context_free(mRdpdr.channel);
+	mRdpdr.channel = nullptr;
 }
 
 QFreeRdpPeer::DispState::DispState()
@@ -312,6 +335,7 @@ BOOL QFreeRdpPeer::xf_surface_frame_acknowledge(rdpContext* context, UINT32 fram
 
 	return rdpPeer->frameAck(frameId);
 }
+
 
 BOOL QFreeRdpPeer::dynvc_dynChannelCreationStatus(void* userdata, UINT32 channelId, INT32 creationStatus) {
 	QFreeRdpPeer *peer = (QFreeRdpPeer *)userdata;
@@ -520,6 +544,25 @@ bool QFreeRdpPeer::initializeChannels()
 			return false;
 		}
 		mPlatform->mClipboard->registerPeer(mClipboard);
+	}
+
+	/* =============== rdpdr =================*/
+	if (config->rdpdr_enabled && WTSVirtualChannelManagerIsChannelJoined(mVcm, RDPDR_SVC_CHANNEL_NAME))
+	{
+		qDebug() << "instantiating rdpdr component";
+		dropRdpdr();
+
+		mRdpdr.channel = rdpdr_server_context_new(mVcm);
+		if (!mRdpdr.channel)
+			return false;
+
+#ifdef WITH_PCSCD_SUPPORT
+		mPlatform->mSmartcardService->setupChannel(mRdpdr.channel);
+#endif
+		if (mRdpdr.channel->Start(mRdpdr.channel) != CHANNEL_RC_OK) {
+			qDebug() << "unable to start rdpdr";
+			return false;
+		}
 	}
 
 	/* =============== egfx =================*/

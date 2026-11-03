@@ -48,6 +48,7 @@ class QFreeRdpClipboard;
 class QFreeRdpCursor;
 class QFreeRdpEglPlatformContext;
 struct QFreeRdpEglDevice;
+class QFreeRdpSmartcardService;
 
 enum DisplayMode {
 	UNKNOWN = 0,
@@ -87,6 +88,7 @@ struct QFreeRdpPlatformConfig {
 	bool tls_enabled;
 	int fps;
 	bool clipboard_enabled;
+	bool rdpdr_enabled;
 	bool egfx_enabled;
 	bool resize_enabled;
 	bool qtwebengine_compat;
@@ -108,6 +110,7 @@ class QFreeRdpPlatform : public QObject, public QPlatformIntegration {
 	friend class QFreeRdpPeer;
 	friend class QFreeRdpListener;
 	friend class QFreeRdpEglPlatformContext;
+	friend class QFreeRdpNativeInterface;
 
 	Q_OBJECT
 public:
@@ -200,6 +203,9 @@ protected:
     QPlatformNativeInterface *mNativeInterface;
     QScopedPointer<QPlatformInputContext> mInputContext;
     QFreeRdpClipboard *mClipboard;
+#ifdef WITH_PCSCD_SUPPORT
+	QFreeRdpSmartcardService *mSmartcardService;
+#endif
     mutable QMutex mEglDeviceLock;
     mutable QFreeRdpEglDevice *mEglDevice;
     mutable bool mEglDeviceFailed;

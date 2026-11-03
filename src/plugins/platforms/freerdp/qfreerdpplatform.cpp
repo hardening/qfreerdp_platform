@@ -52,6 +52,8 @@
 #include "qfreerdpclipboard.h"
 #include "qfreerdpwindow.h"
 #include "qfreerdpwindowmanager.h"
+#include "qfreerdpnativeinterface.h"
+#include "qfreerdpsmartcardservice.h"
 #include "xcursors/qfreerdpxcursor.h"
 
 #include <sys/socket.h>
@@ -78,6 +80,7 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 	tls_enabled(true),
 	fps(24),
 	clipboard_enabled(true),
+	rdpdr_enabled(true),
 	egfx_enabled(true),
 	resize_enabled(true),
 	qtwebengine_compat(false),
@@ -169,6 +172,9 @@ QFreeRdpPlatformConfig::QFreeRdpPlatformConfig(const QStringList &params) :
 		} else if(param == "noegfx") {
 			qDebug("disabling egfx");
 			egfx_enabled = false;
+		} else if(param == "nordpdr") {
+			qDebug("disabling rdpdr");
+			rdpdr_enabled = false;
 		} else if(param == "noclipboard") {
 			qDebug("disabling clipboard");
 			clipboard_enabled = false;
@@ -210,8 +216,11 @@ QFreeRdpPlatformConfig::~QFreeRdpPlatformConfig() {
 QFreeRdpPlatform::QFreeRdpPlatform(const QString& system, const QStringList& paramList)
 : mFontDb(new QGenericUnixFontDatabase())
 , mEventDispatcher(createUnixEventDispatcher())
-, mNativeInterface(new QPlatformNativeInterface())
+, mNativeInterface(new QFreeRdpNativeInterface(this))
 , mClipboard(new QFreeRdpClipboard())
+#ifdef WITH_PCSCD_SUPPORT
+, mSmartcardService(new QFreeRdpSmartcardService(this))
+#endif
 , mEglDevice(nullptr)
 , mEglDeviceFailed(false)
 , mConfig(new QFreeRdpPlatformConfig(paramList))
@@ -247,6 +256,9 @@ QFreeRdpPlatform::~QFreeRdpPlatform() {
 	foreach(QFreeRdpPeer* peer, mPeers) {
 		delete peer;
 	}
+#ifdef WITH_PCSCD_SUPPORT
+	delete mSmartcardService;
+#endif
 
 	delete mDesktopImage;
 	delete mListener;

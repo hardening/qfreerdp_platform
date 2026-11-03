@@ -5,6 +5,7 @@ sources = [
     'qfreerdpclipboard.cpp',
     'qfreerdpplatform.cpp',
     'qfreerdplistener.cpp',
+    'qfreerdpnativeinterface.cpp',
     'qfreerdpscreen.cpp',
     'qfreerdpbackingstore.cpp',
     'qfreerdpwindow.cpp',
@@ -34,12 +35,26 @@ moc_headers = [
     'qfreerdpclipboard.h',
     'qfreerdpscreen.h',
     'qfreerdpbackingstore.h',
+    'qfreerdpnativeinterface.h',
     'qfreerdppeer.h',
     'qfreerdppeerclipboard.h',
     'qfreerdppeerkeyboard.h',
     'qfreerdpwindowmanager.h',
     'qfreerdpwmwidgets.h',
 ]
+
+if pcscd_support.enabled()
+	sources += [
+	    'qfreerdpsmartcardservice.cpp',
+	]
+
+	#headers += [
+	#]
+
+	moc_headers += [
+	    'qfreerdpsmartcardservice.h',
+	]
+endif
 
 if gl_support.enabled()
 	sources += [
@@ -61,7 +76,8 @@ private_dirs = [
 
 moc_files = qt_mod.compile_moc(
     headers : moc_headers,
-    include_directories: [private_dirs],
+#    extra_args: ['-DQT_PLUGIN'],
+    include_directories: [private_dirs, qfreerdp_inc],
     dependencies: [qt_deps]
 )
 
@@ -79,7 +95,7 @@ message('Plugin will be installed to @0@'.format(target_install_dir))
 
 qfreerdp = library('qfreerdp', sources + headers, moc_files, resources_files,
     cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE'] + qt_defines,
-    include_directories: ['../../..', private_dirs],
+    include_directories: ['../../..', private_dirs, qfreerdp_inc],
     dependencies: [qt_deps, glib_deps, freerdp3_deps, xkbcommon_deps, xcursor_deps] + accel_deps,
     link_with: libwmwidgets,
     install: true,
@@ -108,7 +124,7 @@ if with_tests
 	            xcursor_deps
 	        ]  + accel_deps,
 	        link_with: libwmwidgets,
-	        include_directories: ['../../..', private_dirs, 'tests'],
+	        include_directories: ['../../..', private_dirs, 'tests', qfreerdp_inc],
 	        cpp_args: ['-DFREERDP_SETTINGS_INTERNAL_USE', '-DBUILD_TESTS'] + qt_defines
 	    )
 	)

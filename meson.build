@@ -19,7 +19,7 @@ endif
 
 qt_mod = import(qt_ver)
 
-qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Test', 'OpenGL']
+qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Network', 'Test', 'OpenGL']
 if qt_ver == 'qt5'
     qt_modules += ['FontDatabaseSupport', 'EventDispatcherSupport', 'ThemeSupport']
 endif
@@ -64,6 +64,11 @@ if gl_support.enabled()
 	qt_defines += ['-DWITH_GL_SUPPORT=1']
 endif
 
+pcscd_support = get_option('pcscd')
+if pcscd_support.enabled()
+	message('PCSCD support enabled')
+	qt_defines += ['-DWITH_PCSCD_SUPPORT=1']
+endif
 
 # Windows specific keyboard layouts
 xkb_data_path = get_option('xkb_data_path')
@@ -76,7 +81,9 @@ install_subdir('xkb',
     strip_directory: true
 )
 
+subdir('include')
 subdir('src')
+subdir('applications/smartcardCreds')
 if gl_support.enabled()
 	subdir('applications/gltest')
 endif
@@ -86,6 +93,7 @@ summary({
 	'Build with GL support': gl_support.enabled(),
 	'Build unitary tests': with_tests,
 	'Qt': qt_ver,
+	'pcscd': pcscd_support.enabled(),
 	},
 	section: 'Configuration',
 	bool_yn: true
