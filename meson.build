@@ -19,9 +19,27 @@ endif
 
 qt_mod = import(qt_ver)
 
-qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Network', 'Test', 'OpenGL']
+gl_support = get_option('gl')
+if qt_ver == 'qt5'
+    # the EGL context relies on Qt6 internals
+    gl_support = gl_support.require(false, error_message: 'GL support needs Qt6')
+endif
+
+udev_deps = dependency('libudev', required: gl_support)
+gbm_deps = dependency('gbm', required: gl_support)
+gl_deps = dependency('gl', required: gl_support)
+egl_deps = dependency('egl', required: gl_support)
+
+if not gl_support.disabled()
+	gl_support = gl_support.enable_if( udev_deps.found() and gbm_deps.found() and gl_deps.found() and egl_deps.found() )
+endif
+
+qt_modules = ['Core', 'Gui', 'Widgets', 'DBus', 'Network', 'Test']
 if qt_ver == 'qt5'
     qt_modules += ['FontDatabaseSupport', 'EventDispatcherSupport', 'ThemeSupport']
+elif gl_support.enabled()
+    # QOpenGLShaderProgram & co are in QtGui with Qt5 (QtOpenGL is a separate package there)
+    qt_modules += ['OpenGL']
 endif
 
 qt_deps = dependency(qt_ver, modules: qt_modules,
@@ -47,17 +65,6 @@ with_tests = get_option('tests').enabled()
 
 accel_deps = []
 qt_defines = []
-
-gl_support = get_option('gl')
-
-udev_deps = dependency('libudev', required: gl_support)
-gbm_deps = dependency('gbm', required: gl_support)
-gl_deps = dependency('gl', required: gl_support)
-egl_deps = dependency('egl', required: gl_support)
-
-if not gl_support.disabled()
-	gl_support = gl_support.enable_if( udev_deps.found() and gbm_deps.found() and gl_deps.found() and egl_deps.found() )
-endif
 
 if gl_support.enabled()
 	accel_deps += [udev_deps, gbm_deps, egl_deps, gl_deps]

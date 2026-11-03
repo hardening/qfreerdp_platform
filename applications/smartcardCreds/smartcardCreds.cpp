@@ -367,8 +367,8 @@ void SmartcardCreds::treatCommand(const QString &line, bool cmdChannel)
     	qDebug("ping command");
         sendResponse("PONG", cmdChannel);
     } else if(line.startsWith("PIN ")) {
-    	qDebug("pin command pin=%s", line.last(line.size() - 4).toLatin1().data());
-    	mPinEdit->setText(line.last(line.size() - 4));
+    	qDebug("pin command pin=%s", line.mid(4).toLatin1().data());
+    	mPinEdit->setText(line.mid(4));
 
     } else if(line.startsWith("START")) {
     	qDebug("start command");
@@ -442,7 +442,7 @@ void SmartcardCreds::buildUi()
 
     root->addStretch();
 
-    connect(mCertCombo, &QComboBox::currentIndexChanged, this, &SmartcardCreds::onCertSelectionChanged);
+    connect(mCertCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, &SmartcardCreds::onCertSelectionChanged);
     connect(mRefreshBtn, &QPushButton::clicked, this, &SmartcardCreds::onRefreshClicked);
     connect(mLogonBtn, &QPushButton::clicked, this, &SmartcardCreds::onLogonClicked);
     connect(mPinEdit, &QLineEdit::returnPressed, this, &SmartcardCreds::onLogonClicked);
