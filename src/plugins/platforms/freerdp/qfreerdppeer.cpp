@@ -783,7 +783,9 @@ bool QFreeRdpPeer::init() {
 	rdpSettings	*settings;
 	settings = mClient->context->settings;
 	settings->MultitransportFlags = 0;
+	/* no NLA: HYBRID_EX is selected from ExtSecurity (TRUE by default since FreeRDP 3.32) */
 	settings->NlaSecurity = FALSE;
+	settings->ExtSecurity = FALSE;
 	settings->RemoteFxCodec = FALSE;
 	settings->NSCodec = TRUE; // support NS codec
 	settings->ColorDepth = 32;

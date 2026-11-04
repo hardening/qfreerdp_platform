@@ -686,6 +686,7 @@ void QFreeRdpPlatform::configureClient(rdpSettings *settings) {
 	if (settings->FIPSMode || winpr_FIPSMode())
 	{
 		settings->NlaSecurity = FALSE;
+		settings->ExtSecurity = FALSE;
 		settings->EncryptionMethods = ENCRYPTION_METHOD_FIPS;
 	}
 }
